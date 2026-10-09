@@ -30,11 +30,14 @@ export const api = {
   configs: () => call<Preset[]>("GET", "/api/configs"),
   sessions: () => call<SessionSummary[]>("GET", "/api/sessions"),
   session: (name: string) => call<SessionDetail>("GET", `/api/sessions/${encodeURIComponent(name)}`),
+  deleteSession: (name: string, cacheOnly: boolean) =>
+    call<{ ok: boolean }>("DELETE", `/api/sessions/${encodeURIComponent(name)}?cache_only=${cacheOnly}`),
   service: (name: SvcName, action: "start" | "stop" | "restart") =>
     call<{ ok: boolean }>("POST", `/api/services/${name}/${action}`, {}),
   models: () => call<MtModel[]>("GET", "/api/models"),
   start: (o: StartOpts) => call<Session>("POST", "/api/session/start", o),
   stop: () => call<Session>("POST", "/api/session/stop"),
+  prioritize: (pt: number) => call<{ ok: boolean }>("POST", "/api/session/priority", { pt }),
   servicesInfo: () => call<Record<SvcName, SvcInfo>>("GET", "/api/services"),
   serviceLog: (name: SvcName, lines = 200) =>
     call<Record<string, string>>("GET", `/api/services/${name}/log?lines=${lines}`),

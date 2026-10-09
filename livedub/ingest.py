@@ -146,7 +146,8 @@ def first_pt(seg):
 
 def anchor_when_first_chunk(buf, path, delay, stop):
     """Write the run's anchor as soon as the first chunk is listed (see the module doc)."""
-    while not stop.is_set():
+    while True:
+        done = stop.is_set()
         rows = listed(buf)
         if rows:
             T0 = time.time()
@@ -156,6 +157,8 @@ def anchor_when_first_chunk(buf, path, delay, stop):
             tmp.write_text(json.dumps({"T0": T0, "p0": p0, "delay": delay}))
             tmp.replace(path)
             print(f"[{time.strftime('%H:%M:%S')}] anchor: first chunk at PT {p0:.3f}", flush=True)
+            return
+        if done:
             return
         time.sleep(0.1)
 
@@ -198,6 +201,7 @@ def main():
     ap.add_argument("--t", type=float, default=0.0, help="stop after this many seconds (0 = to the end)")
     ap.add_argument("--live", action="store_true", help="live source: continuous PT from 0, restart on failure")
     ap.add_argument("--re", action="store_true", help="with --live and a file: pace it in real time (tests)")
+    ap.add_argument("--ahead", action="store_true", help="process recordings ahead of playback")
     ap.add_argument("--cookies", default=None)
     ap.add_argument("--cookies-from-browser", default=None)
     ap.add_argument("--max-height", type=int, default=1080,
@@ -229,14 +233,16 @@ def main():
     stop_all = threading.Event()
     anchor = Path(a.anchor) if a.anchor else buf.parent / "anchor.json"
     anchor.unlink(missing_ok=True)
-    threading.Thread(target=anchor_when_first_chunk, args=(buf, anchor, a.delay, stop_all), daemon=True).start()
+    anchor_worker = threading.Thread(target=anchor_when_first_chunk, args=(buf, anchor, a.delay, stop_all), daemon=True)
+    anchor_worker.start()
     seg = ["-muxdelay", "0", "-muxpreload", "0",
            "-f", "segment", "-segment_time", "1", "-segment_format", "mpegts", "-reset_timestamps", "0",
            "-segment_list_type", "csv", "-segment_list_flags", "live"]
     out = ["-map", "0:v:0", "-map", "0:a:0", "-c", "copy"] + seg
     base = [FFMPEG, "-hide_banner", "-loglevel", "level+warning"]
     if not a.live and not a.src.startswith("http"):
-        cmd = base + ["-re"]
+        (buf.parent / "source.json").write_text(json.dumps({"is_live": False}), encoding="utf-8")
+        cmd = base + ([] if a.ahead else ["-re"])
         if a.ss:
             cmd += ["-ss", str(a.ss)]
         if a.t:  # input option: with -copyts an output -t would count from PT 0, not from --ss
@@ -246,9 +252,8 @@ def main():
         rc = subprocess.run(cmd).returncode
         (buf / "END").write_text(str(rc))  # readers treat the last chunk as complete once this exists
         stop_all.set()
+        anchor_worker.join()
         return
-    if a.live and a.keep_s:
-        threading.Thread(target=gc_chunks, args=(buf, a.keep_s, stop_all), daemon=True).start()
 
     t_start, run, rc = time.time(), 0, 0
     lost_at = None
@@ -262,6 +267,9 @@ def main():
         run += 1
         try:
             url, is_live = resolve(a.src, a.cookies, a.max_height, a.cookies_from_browser)
+            (buf.parent / "source.json").write_text(json.dumps({"is_live": is_live}), encoding="utf-8")
+            if run == 1 and is_live and a.keep_s:
+                threading.Thread(target=gc_chunks, args=(buf, a.keep_s, stop_all), daemon=True).start()
         except Exception as ex:
             print(f"[{time.strftime('%H:%M:%S')}] resolve failed: {ex}", flush=True)
             lost_at = lost_at or time.time(); time.sleep(10); continue
@@ -282,7 +290,7 @@ def main():
                           "-rw_timeout", "15000000"]
         else:
             cmd = list(base)
-        if a.re or (url.startswith("http") and not is_live):  # a recording behind a URL is paced like a broadcast
+        if a.re or (url.startswith("http") and not is_live and not a.ahead):
             cmd += ["-re"]
         if a.ss and run == 1 and not url.startswith("http"):
             cmd += ["-ss", str(a.ss)]
@@ -323,6 +331,7 @@ def main():
         time.sleep(3)
     (buf / "END").write_text(str(rc))
     stop_all.set()
+    anchor_worker.join()
 
 
 if __name__ == "__main__":

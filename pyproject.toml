@@ -1,7 +1,7 @@
 [project]
 name = "live-dub"
-version = "0.1.0"
-description = "外语直播 / 视频实时翻译：中文字幕 + 克隆说话人音色的中文配音，固定延时让字幕、配音和说话人的嘴对上"
+version = "0.2.0"
+description = "英语直播与视频的中文字幕、原音色中文配音，按源时间戳与画面对齐"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -28,3 +28,8 @@ dev = [
     "pyright>=1.1.414",
     "pytest>=9.1.1",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "--basetemp=.tmp/pytest"

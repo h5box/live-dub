@@ -1,6 +1,6 @@
 [package]
 name = "live-dub"
-version = "0.1.0"
+version = "0.2.0"
 description = "live-dub desktop console"
 authors = ["live-dub"]
 edition = "2021"

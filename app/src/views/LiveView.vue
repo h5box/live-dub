@@ -16,7 +16,7 @@ import SubtitleTimeline from "../components/SubtitleTimeline.vue";
 import { clock, dayLabel, hm, sec1, span } from "../lib/format";
 import { load, save } from "../lib/prefs";
 import { LOW_MARGIN_S } from "../lib/stats";
-import { active, airBase, form, live, p0, player, playhead, programElapsed, rows, session, stats } from "../stores/live";
+import { active, airBase, form, live, p0, player, playhead, programElapsed, rows, session, stats, startSession } from "../stores/live";
 
 defineEmits<{ navigate: [view: "history" | "services"] }>();
 
@@ -29,6 +29,7 @@ const underway = computed(() => ["starting", "running"].includes(s.value?.state 
 const anchor = computed(() => live.status?.health?.anchor ?? null);
 const playout = computed(() => live.status?.health?.playout ?? {});
 const tab = ref<"subs" | "state">(load<string>("liveTab", "subs") === "state" ? "state" : "subs");
+const diagnostics = ref(false);
 function setTab(t: typeof tab.value) { tab.value = t; save("liveTab", t); }
 
 /** seconds of program the session has produced on the default schedule; when over, from first frame to the end */
@@ -68,6 +69,12 @@ const ended = computed(() => !active.value && !!s.value && ["ended", "failed"].i
 const envMissing = computed(() => live.doctor?.missing_required ?? []);
 const media = computed(() => (s.value && s.value.state !== "failed" ? s.value.media ?? null : null));
 const nowProgram = computed(() => (playhead.value !== null && p0.value !== undefined ? playhead.value - p0.value : null));
+function retry(subtitles: boolean) {
+  const old = s.value;
+  if (!old) return;
+  startSession({ preset: old.preset, src: old.src ?? form.src, delay: old.delay_s,
+    dub: subtitles ? false : old.dub, obs: old.obs ?? false, mt_model: old.mt_model ?? form.mt_model });
+}
 
 // drag a video file onto the window (Tauri gives the real path)
 const dragging = ref(false);
@@ -94,8 +101,7 @@ onUnmounted(() => unlisten?.());
 
     <div v-if="!live.link || envMissing.length || live.status?.warnings?.length || live.error" class="banners">
       <Banner v-if="!live.link" tone="critical">
-        连不上后端（127.0.0.1:8090），一连上就会自动恢复。后端没在跑的话，在项目目录运行
-        <code>uv run python -m livedub.server</code>
+        正在连接本机服务。长时间无法连接时，请重新打开程序或检查「环境」页。
       </Banner>
       <Banner v-else-if="envMissing.length && !active" tone="warning">
         这台机器还缺：{{ envMissing.join("、") }}。
@@ -107,7 +113,8 @@ onUnmounted(() => unlisten?.());
 
     <div class="body">
       <div class="main">
-        <Player :media="media" :session="s?.name ?? null" :rows="rows" :anchor="anchor" :running="underway" :dub-on="dubOn">
+        <Player :media="media" :session="s?.name ?? null" :rows="rows" :anchor="anchor" :running="underway" :dub-on="dubOn"
+                :is-live="s?.is_live !== false" :processed="live.status?.health?.progress?.ranges">
           <template #idle>
             <div class="idlehint">
               <template v-if="s?.state === 'starting'">
@@ -115,17 +122,19 @@ onUnmounted(() => unlisten?.());
               </template>
               <template v-else-if="s?.state === 'failed'">
                 <Icon name="error" :size="22" class="bad" /><p>上一场没开起来：{{ s.log.at(-1)?.[1] }}</p>
+                <button class="btn" @click="retry(false)">重试</button><button class="btn" @click="retry(true)">只用字幕重试</button>
               </template>
               <template v-else>
                 <h3>贴一个直播或视频链接，或者选一个本地视频</h3>
-                <p>点「开始」后，画面会晚 {{ form.delay }} 秒播放，字幕和中文配音跟着出来。</p>
-                <p class="muted">给自己看的。要推流就打开「输出到 OBS」，是否有权转播请自行确认，风险自负。</p>
+                <p>直播延时 {{ form.delay }} 秒；视频提前准备字幕，可暂停和跳转。</p>
+                <p class="muted">当前支持英语转简体中文；字幕和配音按句子时间与画面对齐。</p>
               </template>
             </div>
           </template>
         </Player>
 
-        <div class="kpis">
+        <button class="btn sm" @click="diagnostics = !diagnostics">{{ diagnostics ? '收起运行详情' : '运行详情' }}</button>
+        <div v-if="diagnostics" class="kpis">
           <Kpi :label="kpi.time.label" :value="kpi.time.value" :sub="kpi.time.sub" live />
           <Kpi label="字幕" :value="kpi.subs.value" unit="句" :sub="kpi.subs.sub" />
           <Kpi label="配音" :value="kpi.dub.value" :unit="kpi.dub.unit" :sub="kpi.dub.sub" :tone="kpi.dub.tone" :tone-label="kpi.dub.toneLabel" />
@@ -133,7 +142,7 @@ onUnmounted(() => unlisten?.());
           <Kpi v-if="s?.obs" label="OBS 断流帧" :value="kpi.obs.value" :sub="kpi.obs.sub" :tone="kpi.obs.tone" tone-label="有断流" />
         </div>
 
-        <section v-if="rows.length" class="card chartcard">
+        <section v-if="diagnostics && rows.length" class="card chartcard">
           <header class="card-h"><h2>余量</h2><span class="muted">{{ running ? "最近 10 分钟" : "整场" }} · 做好时离默认播放时刻还有几秒，低于 5 秒可能来不及</span></header>
           <div class="card-b">
             <SlackChart :rows="rows" :p0="p0" :span="running ? 600 : 0" :now="nowProgram" :height="130"

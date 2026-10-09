@@ -40,6 +40,7 @@ export class DubMixer {
   private readonly orig = this.ctx.createGain();     // original: the user's volume
   private readonly dubs = this.ctx.createGain();     // all dubs: the user's volume
   private media: MediaElementAudioSourceNode | null = null;
+  private readonly sources = new WeakMap<HTMLVideoElement, MediaElementAudioSourceNode>();
   private clips = new Map<string, Clip | "loading" | "failed">();
   private playing = new Map<string, AudioBufferSourceNode>();
   private started = new Set<string>();               // scheduled since the last seek / pause
@@ -54,7 +55,8 @@ export class DubMixer {
   attach(video: HTMLVideoElement) {
     if (this.media?.mediaElement === video) return;
     this.media?.disconnect();
-    this.media = this.ctx.createMediaElementSource(video);
+    this.media = this.sources.get(video) ?? this.ctx.createMediaElementSource(video);
+    this.sources.set(video, this.media);
     this.media.connect(this.duck);
   }
 

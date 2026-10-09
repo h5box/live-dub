@@ -137,6 +137,8 @@ def run_detail(name: str) -> dict | None:
     except (OSError, ValueError):
         return None
     info.pop("pids", None)
+    info["media"] = f"/api/sessions/{name}/media/index.m3u8" if any((d / "buf").glob("seg_*.ts")) else None
+    info["storage_bytes"] = sum(p.stat().st_size for p in d.rglob("*") if p.is_file())
 
     def jsonl(f: str) -> list[dict]:
         rows = []
@@ -240,6 +242,46 @@ def prune_buffers(keep: int | None = None):
         shutil.rmtree(d, ignore_errors=True)
 
 
+def remove_run(name: str, cache_only=False):
+    """Delete only an ended run inside RUNS; never follow a user-controlled run symlink."""
+    import shutil
+    if not re.fullmatch(NAME_RE, name):
+        raise ValueError("无效的历史名称")
+    d = RUNS / name
+    if d.is_symlink() or d.resolve().parent != RUNS.resolve():
+        raise ValueError("历史目录超出了允许范围")
+    detail = run_detail(name)
+    if detail is None:
+        raise ValueError("历史不存在")
+    if detail["info"]["state"] in ("starting", "running", "stopping"):
+        raise RuntimeError("正在处理的场次不能清理，请先停止")
+    for target in ([d / "buf", d / "clips"] if cache_only else [d]):
+        if target.exists():
+            shutil.rmtree(target)
+
+
+def subtitles(name: str, language: str = "zh") -> str:
+    detail = run_detail(name)
+    if detail is None:
+        raise ValueError("历史不存在")
+    p0 = (detail["anchor"] or {}).get("p0", 0)
+
+    def timestamp(pt):
+        ms = max(0, round((pt - p0) * 1000))
+        seconds, millis = divmod(ms, 1000)
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+
+    output = []
+    for event in detail["events"]:
+        text = (event.get("zh") or event.get("en", "")) if language == "zh" else (
+            event.get("en", "") if language == "en" else "\n".join(filter(None, (event.get("zh"), event.get("en")))))
+        if text:
+            output.append(f"{len(output) + 1}\n{timestamp(event['pt0'])} --> {timestamp(event['pt1'])}\n{text}\n")
+    return "\n".join(output)
+
+
 class Session:
     def __init__(self, services: Services):
         self.svc = services
@@ -307,7 +349,7 @@ class Session:
         problem = source_problem(src)
         if problem:
             raise RuntimeError(problem)
-        cfg = dict(base, src=src, dub=bool(dub), obs=bool(obs))
+        cfg = dict(base, src=src, dub=bool(dub), obs=bool(obs), ahead=not obs)
         if src != base.get("src"):
             cfg.pop("src_ss", None)        # the preset's start offset belongs to its own recording
         if delay is not None:
@@ -345,7 +387,8 @@ class Session:
             await asyncio.to_thread(self._launch, cfg)
             self.info["state"] = "running"
             self.info["started"] = time.time()
-            self.step(f"已开始，约 {cfg.get('delay_s', 30):g} 秒后开始播放"
+            self.step(("已开始，视频首段字幕就绪后播放；直播按设置延时播放" if cfg.get("ahead")
+                       else f"已开始，约 {cfg.get('delay_s', 30):g} 秒后开始播放")
                       + (f"；OBS 媒体源地址 {OBS_URL}" if cfg.get("obs") else ""))
         except Exception as e:
             self.step(f"开播失败：{e}")
@@ -387,7 +430,10 @@ class Session:
             if not await self.svc.wait_up("mt", 180, lambda x: x.get("model") == model):
                 raise RuntimeError(self.svc.errors.get("mt") or "翻译服务起不来，看日志 logs/mt.log")
         if cfg["dub"] and not s["dub"]["up"]:
-            self.step("配音服务没开：这场只出字幕（要配音先在「环境」页启动，约 1.5–3 分钟）")
+            self.step("启动中文配音（首次可能需要 2–3 分钟）")
+            await self.svc.start("dub")
+            if not await self.svc.wait_up("dub", 600):
+                raise RuntimeError("配音启动失败，可关闭中文配音后重试；" + self.svc.errors.get("dub", "请检查环境"))
 
     def _launch(self, cfg: dict):
         d, rel = self.dir, self.dir.relative_to(ROOT) if self.dir.is_relative_to(ROOT) else self.dir
@@ -396,6 +442,8 @@ class Session:
         # the source comes from config.json, so a user's path or URL never goes through a command line
         ing = py + ["livedub.ingest", "--src-config", str(rel / "config.json"), str(rel / "buf"),
                     "--delay", str(cfg.get("delay_s", 30))]
+        if cfg.get("ahead"):
+            ing += ["--ahead"]
         if link:   # live or a recording behind a URL; ingest tells them apart and paces the recording
             ing += ["--live", "--keep-s", str(cfg.get("keep_s", 1800))]
         proc = py + ["livedub.processor", str(rel / "buf"), str(rel / "events.jsonl"), str(rel / "config.json"),
@@ -417,6 +465,26 @@ class Session:
         self._save()
 
     # ---- stop ---------------------------------------------------------------------------------------------
+    def prioritize(self, pt: float):
+        if not self.active or not self.dir:
+            raise RuntimeError("没有正在处理的视频")
+        try:
+            source = json.loads((self.dir / "source.json").read_text(encoding="utf-8"))
+            cfg = json.loads((self.dir / "config.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise RuntimeError("正在读取视频，请稍后重试")
+        if source["is_live"] or not cfg.get("ahead"):
+            raise RuntimeError("直播和 OBS 输出只支持回看已处理的内容")
+        from ..ingest import listed
+        rows = [r for r in listed(self.dir / "buf") if (self.dir / "buf" / r[0]).is_file()]
+        if not rows or pt < 0 or pt > float(rows[-1][2]):
+            raise RuntimeError("目标位置的视频还未读取，请稍后重试")
+        start = next((r for r in reversed(rows) if float(r[1]) <= max(0, pt - 2)), rows[0])
+        target = self.dir / "priority.json"
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"id": time.time_ns(), "pt": pt, "segment": int(Path(start[0]).stem[4:])}), encoding="utf-8")
+        tmp.replace(target)
+
     def _kill_all(self) -> int:
         if not self.dir:
             return 0
@@ -459,6 +527,14 @@ class Session:
                 self.info["state"] = "ended"
                 self.info["ended"] = time.time()
                 self.step("三个进程都已退出，本场结束")
-        return {"running": running, "mem_mb": mem, "anchor": read_anchor(self.dir),
+        source, progress = {}, {}
+        for file, obj in (("source.json", source), ("progress.json", progress)):
+            try:
+                obj.update(json.loads((self.dir / file).read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                pass
+        if "is_live" in source:
+            self.info["is_live"] = source["is_live"]
+        return {"running": running, "mem_mb": mem, "anchor": read_anchor(self.dir), "progress": progress,
                 "playout": playout_line(self.dir) if self.info.get("obs", True) else {}}
 

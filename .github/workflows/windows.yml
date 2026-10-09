@@ -15,7 +15,9 @@ jobs:
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
-      - run: uv sync --locked
+      - run: uv sync --locked --python 3.13
+      - run: uv run --no-sync pytest -q
+      - run: uv run --no-sync pyright livedub/asr.py livedub/setup.py livedub/settings.py
       - run: choco install ffmpeg --no-progress -y
       - run: ./scripts/build_desktop.ps1
       - uses: actions/upload-artifact@v4
@@ -27,4 +29,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
-        run: gh release create $env:GITHUB_REF_NAME app/src-tauri/target/release/bundle/nsis/*.exe --title "LiveDub $env:GITHUB_REF_NAME" --generate-notes
+        run: |
+          gh release view $env:GITHUB_REF_NAME --json tagName
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME app/src-tauri/target/release/bundle/nsis/*.exe --clobber
+          } else {
+            $releaseArgs = @()
+            if ($env:GITHUB_REF_NAME -match '^v0\.') { $releaseArgs += '--prerelease' }
+            gh release create $env:GITHUB_REF_NAME app/src-tauri/target/release/bundle/nsis/*.exe --title "LiveDub $env:GITHUB_REF_NAME" --generate-notes @releaseArgs
+          }

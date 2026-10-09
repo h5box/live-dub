@@ -18,3 +18,4 @@ livedub/
 - 识别文件路径走 asr_path；配音继续走 to_linux。
 ## 项目记忆
 - 10-10 07:30：原生识别固定 sherpa-onnx/core 1.13.8，避免加载系统旧 onnxruntime.dll。
+- 10-10 07:36：快速点播退出前等待锚点线程；URL 点播跳转需读取尚未合并的 list_run 表。

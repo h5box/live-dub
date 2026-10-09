@@ -3,12 +3,13 @@
 // session's title, state and stop button while one does.
 import { computed, onUnmounted, ref } from "vue";
 import { hm } from "../lib/format";
-import { active, form, formPreset as preset, live, serviceAction, services, session, startSession, stopSession }
+import { active, form, formPreset as preset, live, services, session, startSession, stopSession }
   from "../stores/live";
 import Icon from "./Icon.vue";
 import ObsCard from "./ObsCard.vue";
 
 const inTauri = "__TAURI_INTERNALS__" in window;
+const advanced = ref(false);
 const VIDEO_EXT = ["mp4", "mkv", "mov", "webm", "ts", "m2ts", "flv", "avi", "m4v", "wmv"];
 
 function pick(name: string) {
@@ -103,6 +104,11 @@ const STATE = { starting: "准备中", running: "翻译中", stopping: "停止�
         </button>
       </div>
       <div class="row2">
+        <label class="switch"><input v-model="form.dub" type="checkbox" />中文配音</label>
+        <span>本应用延时 {{ form.delay }} 秒</span>
+        <button class="btn sm" :aria-expanded="advanced" @click="advanced = !advanced">{{ advanced ? '收起高级选项' : '高级选项' }}</button>
+      </div>
+      <div v-if="advanced" class="row2">
         <label class="opt" title="影响翻译的用词：场景说明、术语表、识别热词（configs/ 里的预设，自己的放 configs/local/）">场景
           <select class="select" :value="form.preset" @change="pick(($event.target as HTMLSelectElement).value)">
             <option v-for="p in live.presets" :key="p.name" :value="p.name">{{ p.title }}{{ p.local ? "（自己的）" : "" }}</option>
@@ -115,7 +121,6 @@ const STATE = { starting: "准备中", running: "翻译中", stopping: "停止�
             <button class="btn icon sm" :disabled="form.delay >= 120" title="加 5 秒" @click="step(5)"><Icon name="plus" :size="13" /></button>
           </div>秒
         </div>
-        <label class="switch"><input v-model="form.dub" type="checkbox" />中文配音</label>
         <label class="opt">翻译
           <select v-model="form.mt_model" class="select" :title="modelInfo ? `${modelInfo.label}：${modelInfo.detail}` : ''">
             <option value="">默认（{{ live.models.find((m) => m.key === defaultModel)?.label ?? defaultModel }}）</option>
@@ -126,14 +131,13 @@ const STATE = { starting: "准备中", running: "翻译中", stopping: "停止�
         <label class="switch" title="把带字幕和配音的画面推到本机 MediaMTX，给 OBS 拉流"><input v-model="form.obs" type="checkbox" />输出到 OBS</label>
       </div>
       <div class="hint">
-        <span v-if="kind === 'link'"><Icon name="link" :size="12" />链接：直播或录像自动识别，录像按实时速度读</span>
-        <span v-else-if="kind === 'file'"><Icon name="film" :size="12" />本地视频：按实时速度读，可暂停、回看</span>
+        <span v-if="kind === 'link'"><Icon name="link" :size="12" />自动区分直播和点播；点播提前处理字幕</span>
+        <span v-else-if="kind === 'file'"><Icon name="film" :size="12" />本地视频：提前处理，可暂停、跳转</span>
         <span v-else>画面延时 D 秒播放，好让识别、翻译、配音先跑在前面</span>
         <span v-if="!delayOk" class="chip warning"><Icon name="alert" :size="12" />延时要在 10 到 120 秒之间</span>
         <span v-if="modelInfo && !modelInfo.ready" class="chip warning"><Icon name="alert" :size="12" />{{ modelInfo.note }}</span>
         <span v-if="form.dub && dubDown" class="chip warning">
-          <Icon name="alert" :size="12" />配音服务没开，开始后只出字幕
-          <button class="btn sm" :disabled="!!live.busy" @click="serviceAction('dub', 'start')">启动配音（约 2 分钟）</button>
+          <Icon name="alert" :size="12" />开始时自动启动配音，首次可能需要 2–3 分钟
         </span>
         <span v-if="form.dub && services?.dub?.state === 'starting'" class="chip"><Icon name="spinner" :size="12" class="spin" />配音服务启动中</span>
         <span v-if="form.obs" class="chip warning"><Icon name="alert" :size="12" />推流前请确认你有权转播这个内容，风险自负</span>

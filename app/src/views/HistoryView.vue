@@ -6,10 +6,13 @@ import Kpi from "../components/Kpi.vue";
 import SessionLog from "../components/SessionLog.vue";
 import SlackChart from "../components/SlackChart.vue";
 import SubtitleTimeline from "../components/SubtitleTimeline.vue";
+import Player from "../components/Player.vue";
+import { BASE } from "../api/client";
+import { load } from "../lib/prefs";
 import { dayLabel, hm, sec1, span } from "../lib/format";
 import { buildRows } from "../lib/rows";
 import { computeStats, LOW_MARGIN_S } from "../lib/stats";
-import { history, loadList, select } from "../stores/history";
+import { history, loadList, select, remove } from "../stores/history";
 import { live } from "../stores/live";
 
 onMounted(loadList);
@@ -37,6 +40,20 @@ const p0 = computed(() => d.value?.anchor?.p0 ?? rows.value[0]?.pt0);
 const airBase = computed(() => (d.value?.anchor ? d.value.anchor.T0 + d.value.anchor.delay - d.value.anchor.p0 : undefined));
 
 const q = ref("");
+const exportLanguage = ref("both");
+const replay = ref(false);
+const confirm = ref<"cache" | "delete" | null>(null);
+const removing = ref(false);
+watch(() => history.selected, () => { replay.value = false; confirm.value = null; });
+const resumable = computed(() => !replay.value && info.value && load<number | null>(`position:${info.value.name}`, null) !== null);
+const retained = computed(() => info.value?.media && !["starting", "running", "stopping"].includes(info.value.state));
+async function cleanup() {
+  if (!info.value || !confirm.value) return;
+  removing.value = true;
+  try { replay.value = false; await remove(info.value.name, confirm.value === "cache"); confirm.value = null; }
+  catch (e) { history.detailError = (e as Error).message; }
+  finally { removing.value = false; }
+}
 const tab = ref<"subs" | "log">("subs");
 watch(() => [history.selected, d.value] as const, () => {
   q.value = "";
@@ -98,6 +115,20 @@ const STATE: Record<string, string> = { starting: "准备中", running: "直播�
           <span v-if="info.state === 'failed'" class="chip critical"><Icon name="error" :size="12" />开播失败</span>
           <span v-else-if="info.state === 'running'" class="chip"><i class="air" />直播中</span>
         </header>
+        <div class="history-actions">
+          <button v-if="retained" class="btn primary" @click="replay = !replay">{{ replay ? '收起播放器' : resumable ? '继续观看' : '回放视频' }}</button>
+          <span v-else class="muted">{{ info.state === 'running' ? '本场仍在处理，请到观看页播放' : '视频缓存已清理，字幕仍可阅读和导出' }}</span>
+          <select v-model="exportLanguage" class="select" aria-label="导出字幕语言"><option value="both">双语</option><option value="zh">中文</option><option value="en">原文</option></select>
+          <a class="btn" :href="`${BASE}/api/sessions/${encodeURIComponent(info.name)}/subtitles.srt?language=${exportLanguage}`" download="subtitles.srt">导出字幕</a>
+          <span class="muted">占用 {{ ((info.storage_bytes ?? 0) / 1024 ** 2).toFixed(0) }} MB</span>
+          <template v-if="!['starting', 'running', 'stopping'].includes(info.state)">
+            <button class="btn" :disabled="removing" @click="confirm = 'cache'">清理视频与配音</button>
+            <button class="btn danger" :disabled="removing" @click="confirm = 'delete'">删除历史</button>
+          </template>
+        </div>
+        <Banner v-if="confirm" tone="warning">{{ confirm === 'cache' ? '清理视频和配音缓存，保留字幕与记录。' : '删除这一场的所有缓存、字幕和记录，无法撤销。' }}<button class="btn danger sm" :disabled="removing" @click="cleanup">确认{{ confirm === 'cache' ? '清理' : '删除' }}</button><button class="btn sm" @click="confirm = null">取消</button></Banner>
+        <Banner v-if="history.detailError" tone="critical">{{ history.detailError }}</Banner>
+        <div v-if="replay && retained" class="replay"><Player :media="info.media ?? null" :session="info.name" :rows="rows" :anchor="d?.anchor ?? null" :running="false" :dub-on="info.dub" :is-live="false" /></div>
         <Banner v-if="history.loading === info.name" tone="info">正在读取…</Banner>
         <Banner v-if="reason" tone="critical">{{ reason }}</Banner>
         <div v-if="rows.length" class="kpis">
@@ -135,6 +166,8 @@ const STATE: Record<string, string> = { starting: "准备中", running: "直播�
 </template>
 
 <style scoped>
+.history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 12px; }
+.replay { padding: 0 16px 12px; max-height: 55vh; overflow-y: auto; flex-shrink: 0; }
 .view { height: 100%; display: flex; gap: var(--gap); padding: var(--gap); min-width: 0; }
 .list { width: 288px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
 .list > .card-h { border-bottom: 1px solid var(--border); }

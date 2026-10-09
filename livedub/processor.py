@@ -53,16 +53,23 @@ class AudioRing:
     """Mono PCM of the program at 16 kHz (ASR) and 24 kHz (TTS references), indexed by PT; filled by a thread
     decoding the ingest chunks."""
 
-    def __init__(self, buf):
+    def __init__(self, buf, start=0):
         self.buf, self.base, self.lock, self.done = buf, None, threading.Lock(), False
         self.parts, self.n, self.hi = [], 0, []
         self.drop, self.drop_hi = 0, 0  # samples already discarded from the front (see trim)
+        self.start, self.stop = start, threading.Event()
+        self.processed = None
 
     def run(self):
-        src = av.open(io.BufferedReader(ChunkReader(self.buf), buffer_size=1 << 20), format="mpegts")
+        src = av.open(io.BufferedReader(ChunkReader(self.buf, start=self.start, stop=self.stop), buffer_size=1 << 20), format="mpegts")
         rs = av.AudioResampler(format="flt", layout="mono", rate=SR)
         rs_hi = av.AudioResampler(format="flt", layout="mono", rate=SR_HI)
         for fr in src.decode(audio=0):
+            while (self.processed is not None and self.base is not None and
+                   self.base + self.n / SR - self.processed > 90 and not self.stop.is_set()):
+                time.sleep(0.05)
+            if self.stop.is_set():
+                break
             if self.base is not None and fr.pts is not None:
                 gap = float(fr.pts * fr.time_base) - (self.base + self.n / SR)
                 if gap > 0.2:  # the source skipped (live restart): silence keeps sample index == PT
@@ -76,10 +83,12 @@ class AudioRing:
                 with self.lock:
                     if self.base is None and f.pts is not None:
                         self.base = float(f.pts * f.time_base)
+                        self.processed = self.base
                     self.parts.append(x); self.n += len(x)
             with self.lock:
                 self.hi += hi
         self.done = True
+        src.close()
 
     @property
     def latest(self):
@@ -243,13 +252,15 @@ def main():
     model = mt.models()[key]
     mt.STYLE = model["style"]
     ctx_zh = bool(cfg.get("mt_context_zh", False))
-    chat = None
-    if model.get("api"):  # online model: the whole stream as one conversation (livedub/mt_chat.py), no llama-server
+    def make_chat():
+        if not model.get("api"):
+            return None
         from .mt_chat import ChatMT
-        chat = ChatMT(model.get("model", ""), model["api"], domain=mt.DOMAIN, names=mt.NAMES, glossary=mt.GLOSSARY,
+        return ChatMT(model.get("model", ""), model["api"], domain=mt.DOMAIN, names=mt.NAMES, glossary=mt.GLOSSARY,
                       temperature=float(cfg.get("mt_api_temperature", 1.3)), ctx_window=model.get("ctx", 1_000_000),
                       compact_at=cfg.get("mt_compact_at"), log_path=Path(a.events).with_name("mt_api.jsonl"),
                       thinking=cfg.get("mt_api_thinking", "off"), prompt=cfg.get("mt_api_prompt", "v5"))
+    chat = make_chat()
     delay = float(cfg.get("delay_s", 30))
     clips = Path(a.clips); clips.mkdir(parents=True, exist_ok=True)
     anchor_path = Path(a.anchor) if a.anchor else Path(a.events).with_name("anchor.json")
@@ -309,11 +320,32 @@ def main():
     commit = None
     win_no = 0
     anchor = None
+    source_path = Path(a.events).with_name("source.json")
+    request_path = Path(a.events).with_name("priority.json")
+    progress_path = Path(a.events).with_name("progress.json")
+    is_vod = False
+    request_id, range_start, coverage, unit_no = None, None, [], 0
+
+    def save_progress(end, done=False):
+        nonlocal coverage
+        if range_start is not None and end > range_start:
+            ranges = sorted(coverage + [[range_start, end]])
+            merged = []
+            for start, stop in ranges:
+                if merged and start <= merged[-1][1] + 0.5:
+                    merged[-1][1] = max(merged[-1][1], stop)
+                else:
+                    merged.append([start, stop])
+            coverage = merged
+        tmp = progress_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"ranges": coverage, "position": end, "done": done}), encoding="utf-8")
+        tmp.replace(progress_path)
 
     def arrival(pt):
         return None if not anchor else anchor["T0"] + (pt - anchor["p0"])
 
     def emit(sent_group, tail_text):
+        nonlocal unit_no
         """Translate one unit and append its event."""
         words = [w for s in sent_group for w in s["words"]]
         u = {"s": words[0]["s"], "e": words[-1]["e"], "en": mt.fix_names(" ".join(w["w"] for w in words)),
@@ -346,9 +378,10 @@ def main():
         write_event(ev)
         now = time.time()
         if dubber.ok and anchor and out.strip() and u["e"] - u["s"] >= 0.8:
-            n = len(units)
+            unit_no += 1
+            n = unit_no
             (clips / f"unit_{n - 300:05d}.wav").unlink(missing_ok=True)  # long synthesized; voice references are kept
-            if a.keep_dubs:
+            if a.keep_dubs and not is_vod:
                 (clips / f"dub_{n - a.keep_dubs:05d}.wav").unlink(missing_ok=True)
             x_hi = ring.get(u["s"] - 0.05, u["e"] + 0.05, hi=True)
             emo = clips / f"unit_{n:05d}.wav"
@@ -367,6 +400,8 @@ def main():
                    "spk_ref": lpath(spk_ref), "emo_ref": lpath(emo_ref), "target_s": round(u["e"] - u["s"], 3),
                    "out": lpath(out_wav)}
             deadline = anchor["T0"] + delay + (u["s"] - anchor["p0"]) - 1.0  # playout polls events every 0.5 s
+            if is_vod:
+                deadline = time.time() + 120
             dubber.submit(deadline, req, dict(ev, gain=round(gain, 3)), str(out_wav.resolve()).replace("\\", "/"))
         rec = {"pt0": ev["pt0"], "pt1": ev["pt1"], "spk": u["spk"], "committed": round(sent_group[-1]["committed"], 3),
                "mt_s": round(now - t, 3), "written": round(now, 3)}
@@ -378,19 +413,42 @@ def main():
               f"slack {rec.get('slack_s')} | {out}", flush=True)
 
     while True:
-        time.sleep(STEP)
+        time.sleep(0.05 if is_vod else STEP)
+        if source_path.exists():
+            try:
+                is_vod = cfg.get("ahead", False) and not json.loads(source_path.read_text(encoding="utf-8"))["is_live"]
+            except (OSError, ValueError, KeyError):
+                pass
+        if is_vod and request_path.exists():
+            try:
+                request = json.loads(request_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                request = {}
+            if request.get("id") and request["id"] != request_id:
+                request_id = request["id"]
+                ring.stop.set()
+                ring = AudioRing(a.buf, start=request["segment"])
+                threading.Thread(target=ring.run, daemon=True).start()
+                commit, range_start, pending = None, None, []
+                units.clear(); zh.clear()
+                chat = make_chat()
         if anchor is None and anchor_path.exists():
             anchor = json.loads(anchor_path.read_text(encoding="utf-8"))
         latest = ring.latest
         if latest is None:
             continue
         if commit is None:
+            assert ring.base is not None
             commit = ring.base
+            range_start = commit
         if pending and time.time() - pending_since > 4.0:   # don't hold a fragment forever
             emit(pending, ""); pending = []
-        if latest - commit < MIN_WINDOW:
+        if latest - commit < MIN_WINDOW and not (ring.done and latest - commit > 0.5):
             if ring.done:
-                break
+                if not is_vod:
+                    break
+                save_progress(latest, done=True)
+                time.sleep(0.5)
             continue
         t1 = min(latest, commit + WINDOW)
         x = ring.get(commit, t1)
@@ -404,6 +462,8 @@ def main():
         full = t1 - commit >= WINDOW - 0.5
         if full and not words:  # a whole window of silence / music / gap padding: move past it, or we'd resend it forever
             commit = t1 - TAIL_GUARD
+            ring.processed = commit
+            save_progress(commit)
             ring.trim(commit - 90)
             continue
         done = [s for s in sents if s[-1]["e"] <= t1 - TAIL_GUARD]
@@ -415,13 +475,26 @@ def main():
             if ring.done and latest - commit < WINDOW:
                 done, tail_text = sents + ([tail] if tail else []), ""
                 if not done:  # the source ended on silence: nothing left to commit (10-04: done[-1] crashed here)
+                    commit = latest
+                    ring.processed = commit
+                    if is_vod:
+                        save_progress(commit, done=True)
+                        continue
                     break
             else:
                 continue
         spans = [[s[0]["s"] - commit, s[-1]["e"] - commit] for s in done]
         embs = post(f"{ASR_URL}/embed", {"wav": settings.asr_path(wav), "spans": spans})["emb"]
         now = time.time()
+        processed_sents = []
         for s, e in zip(done, embs):
+            if is_vod and request_path.exists():
+                try:
+                    if json.loads(request_path.read_text(encoding="utf-8")).get("id") != request_id:
+                        break
+                except (OSError, ValueError):
+                    pass
+            processed_sents.append(s)
             sent = {"words": s, "spk": spk.assign(e, s[-1]["e"] - s[0]["s"]), "committed": now}
             if pending and pending[0]["spk"] == sent["spk"] and s[-1]["e"] - pending[0]["words"][0]["s"] <= 12.0:
                 pending.append(sent)
@@ -434,11 +507,19 @@ def main():
                 pending, pending_since = [sent], time.time()
             else:
                 emit([sent], tail_text)
-        commit = done[-1][-1]["e"]
+        if not processed_sents:
+            continue
+        commit = processed_sents[-1][-1]["e"]
+        if is_vod and pending:
+            emit(pending, tail_text); pending = []
+        ring.processed = commit
+        save_progress(commit)
         if win_no % 30 == 0:
             ring.trim(commit - 90)  # units reach back at most ~16 s before commit (held fragments); keep plenty
         if ring.done and latest - commit < 0.5:
-            break
+            if not is_vod:
+                break
+            save_progress(latest, done=True)
     if pending:
         emit(pending, "")
     while dubber.ok and dubber.q:

@@ -32,7 +32,7 @@ OMNI_ENV = {   # vLLM inside WSL: no UVA for the V2 model runner, no nvcc for th
     "PYTHONUNBUFFERED": "1", "LIVEDUB_OMNI_FACTOR_LOG": "/tmp/livedub_omni_factor.jsonl"}
 
 
-def _get(url: str, timeout: float = 2.0):
+def _get(url: str, timeout: float = 0.5):
     with urllib.request.urlopen(url, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8") or "null")
 
@@ -59,7 +59,7 @@ def rel(p: Path) -> str:
 def model_key_of(path: str) -> str | None:
     """The translation model key whose GGUF a running llama-server loaded."""
     name = Path(path or "").name
-    return next((k for k in mt.models() if mt.gguf_path(k) and Path(mt.gguf_path(k)).name == name), None)
+    return next((k for k in mt.models() if (model_path := mt.gguf_path(k)) and Path(model_path).name == name), None)
 
 
 def _exports(env: dict) -> str:
@@ -218,7 +218,7 @@ class Services:
         self._linux_check({"识别的 Python 环境": a["python"], "Parakeet 模型": a["model"],
                            "TitaNet 模型": a["speaker_model"]}, "识别服务")
         cmd = (f"exec env CUDA_VISIBLE_DEVICES= PYTHONUNBUFFERED=1 {sh(a['python'])} "
-               f"{sh(to_linux(ROOT / 'svc' / 'asr_service.py'))} --config {sh(to_linux(config))} "
+               f"{sh(to_linux(settings.RESOURCES / 'svc' / 'asr_service.py'))} --config {sh(to_linux(config))} "
                f"--port {settings.port('asr')} --device {sh(a['device'])} --threads {int(a['threads'])} "
                f"--model {sh(a['model'])} --speaker-model {sh(a['speaker_model'])}")
         procs.spawn(settings.linux_argv(cmd), log_path("asr"), cwd=ROOT)
@@ -236,7 +236,7 @@ class Services:
             raise RuntimeError("找不到 llama-server：运行 python scripts/fetch.py llama 下载，或在 settings.json 的 "
                                "tools.llama_server 填它的路径")
         gguf = mt.gguf_path(model_key)
-        if not Path(gguf).is_file():
+        if not gguf or not Path(gguf).is_file():
             raise RuntimeError(f"翻译模型文件不在：{gguf}（python scripts/fetch.py model {model_key} 下载）")
         env = {}
         tools = ROOT / "tools" / "llama.cpp"
@@ -268,7 +268,7 @@ class Services:
                    "(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1 > /tmp/livedub_omni_base_mib) "
                    "2>/dev/null; "
                    f"exec {sh(d['vllm'])} serve {sh(d['model'])} --omni --trust-remote-code --host 127.0.0.1 "
-                   f"--port {settings.port('omni')} --deploy-config {sh(to_linux(settings.path(d['deploy_config'])))}")
+                   f"--port {settings.port('omni')} --deploy-config {sh(to_linux(settings.RESOURCES / d['deploy_config']))}")
             procs.spawn(settings.linux_argv(cmd), log_path("omni"), cwd=ROOT)
         args = ["--backend", d["backend"], "--port", str(settings.port("dub")),
                 "--omni-url", settings.url("omni"), "--model", d["model"], "--indextts-repo", d["indextts_repo"],
@@ -276,7 +276,7 @@ class Services:
         if d.get("warmup_ref"):
             args += ["--warmup-ref", d["warmup_ref"]]
         args += [str(x) for x in d.get("args", [])]
-        cmd = (f"export {_exports(env)}; exec {sh(d['python'])} {sh(to_linux(ROOT / 'dubsvc' / 'server.py'))} "
+        cmd = (f"export {_exports(env)}; exec {sh(d['python'])} {sh(to_linux(settings.RESOURCES / 'dubsvc' / 'server.py'))} "
                + " ".join(sh(x) for x in args))
         procs.spawn(settings.linux_argv(cmd), log_path("dub"), cwd=ROOT)
 

@@ -1,7 +1,7 @@
 # 界面开发
 
 ## 项目导航
-- Vue 3 + TypeScript、Vite、Tauri 2；src/main.ts 入口，App.vue 组织三个页面。
+- Vue 3 + TypeScript、Vite、Tauri 2；src/main.ts 入口，App.vue 组织四个页面。
 - 本目录执行 npx pnpm install / dev / build；构建包含 vue-tsc 类型检查。
 - 假后端 8099 配 VITE_API；具体启动命令见 README.md，无需模型或 GPU。
 
@@ -13,7 +13,7 @@ app/
 │   ├── api/              类型、HTTP、SSE
 │   ├── stores/           当前场次与历史状态
 │   ├── components/       播放器、字幕、图表、导航等组件
-│   ├── views/            观看、历史、环境三个页面
+│   ├── views/            观看、历史、环境、设置向导
 │   ├── lib/              配音混音、统计、格式与偏好
 │   └── styles/           主题颜色与公共样式
 ├── src-tauri/            桌面外壳；icons/ 桌面图标，src/ Rust 入口
@@ -41,3 +41,5 @@ Vite → dist → 后端托管 / Tauri 窗口
 
 ## 项目记忆
 - 10-09 20:43：Logo 使用蓝底白色气泡、声波和播放符号，统一网页与桌面标识。
+- 10-10 07:36：直播按锚点延时，点播字幕就绪后播放；历史位置按场次保存在本地存储。
+- 10-10 07:36：KeepAlive 切页暂停旧播放器；同一 video 的 WebAudio 节点只创建一次。

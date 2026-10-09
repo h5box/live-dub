@@ -45,8 +45,9 @@ class ChunkReader(io.RawIOBase):
 
     GC_KEEP = 60
 
-    def __init__(self, buf, timeout=None, gc=False):
-        self.buf, self.i, self.f, self.timeout, self.gc = Path(buf), 0, None, timeout, gc
+    def __init__(self, buf, timeout=None, gc=False, start=0, stop=None):
+        self.buf, self.i, self.f, self.timeout, self.gc = Path(buf), start, None, timeout, gc
+        self.stop = stop
 
     def readable(self):
         return True
@@ -57,6 +58,10 @@ class ChunkReader(io.RawIOBase):
     def readinto(self, b):
         waited = 0.0
         while True:
+            if self.stop is not None and self.stop.is_set():
+                if self.f is not None:
+                    self.f.close(); self.f = None
+                return 0
             if self.f is None:
                 ended = (self.buf / "END").exists()
                 if self._path(self.i).exists() and (self._path(self.i + 1).exists() or ended):

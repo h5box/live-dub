@@ -88,6 +88,7 @@ async def setup_status():
 
 @app.post("/api/setup")
 async def setup_start(req: SetupReq):
+    assert session is not None
     if session.active:
         raise HTTPException(409, "先停止观看，再安装组件")
     if services.status.get("services", {}).get("asr", {}).get("up") and req.component == "subtitles":
@@ -257,6 +258,23 @@ async def stop():
         raise HTTPException(409, str(e))
 
 
+class PriorityReq(BaseModel):
+    pt: float
+
+
+@app.post("/api/session/priority")
+async def prioritize(req: PriorityReq):
+    assert session is not None
+    import math
+    if not math.isfinite(req.pt):
+        raise HTTPException(400, "播放位置必须是有效数字")
+    try:
+        await asyncio.to_thread(session.prioritize, req.pt)
+    except (RuntimeError, OSError) as e:
+        raise HTTPException(409, str(e))
+    return {"ok": True}
+
+
 @app.get("/api/sessions")
 async def sessions():
     out = []
@@ -283,6 +301,38 @@ async def media_playlist(name: str):
     if text is None:
         raise HTTPException(404, "这一场没有可播的画面")
     return Response(text, media_type="application/vnd.apple.mpegurl", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/sessions/{name}/subtitles.srt")
+async def export_subtitles(name: str, language: str = "zh"):
+    if language not in ("zh", "en", "both"):
+        raise HTTPException(400, "字幕语言无效")
+    try:
+        text = await asyncio.to_thread(sess.subtitles, name, language)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return Response(text.encode("utf-8-sig"), media_type="application/x-subrip",
+                    headers={"Content-Disposition": 'attachment; filename="subtitles.srt"'})
+
+
+@app.delete("/api/sessions/{name}")
+async def delete_session(name: str, cache_only: bool = False):
+    assert session is not None
+    if session.active and (session.info or {}).get("name") == name:
+        raise HTTPException(409, "先停止本场，再清理历史")
+    try:
+        await asyncio.to_thread(sess.remove_run, name, cache_only)
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(409, str(e))
+    if (session.info or {}).get("name") == name:
+        if cache_only:
+            assert session.info is not None
+            session.info["media"] = None
+            session._save()
+        else:
+            session.info = None
+            session.dir = None
+    return {"ok": True}
 
 
 @app.get("/api/sessions/{name}/media/{seg}")

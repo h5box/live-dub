@@ -13,8 +13,6 @@ export const history = reactive({
   detailError: "",
 });
 
-const cache = new Map<string, SessionDetail>();   // finished sessions do not change
-
 export async function loadList() {
   try {
     history.list = await api.sessions();
@@ -29,16 +27,21 @@ export async function loadList() {
 export async function select(name: string) {
   history.selected = name;
   history.detailError = "";
-  const hit = cache.get(name);
-  if (hit) { history.detail = hit; return; }
   history.loading = name;
   try {
     const d = await api.session(name);
-    if (["ended", "failed"].includes(d.info.state)) cache.set(name, d);
     if (history.selected === name) history.detail = d;
   } catch (e) {
     if (history.selected === name) { history.detail = null; history.detailError = (e as Error).message; }
   } finally {
     if (history.loading === name) history.loading = "";
   }
+}
+
+export async function remove(name: string, cacheOnly: boolean) {
+  await api.deleteSession(name, cacheOnly);
+  history.detail = null;
+  if (!cacheOnly) history.selected = "";
+  await loadList();
+  if (cacheOnly) await select(name);
 }

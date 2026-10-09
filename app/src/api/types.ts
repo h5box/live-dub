@@ -14,9 +14,10 @@ export type SessionState = "starting" | "running" | "stopping" | "ended" | "fail
 
 export interface Session {
   name: string; preset: string; title: string; state: SessionState; delay_s: number; dub: boolean;
-  src?: string; kind?: SourceKind; mt_model?: string;
+  src?: string; kind?: SourceKind; mt_model?: string; is_live?: boolean;
   obs?: boolean; obs_url?: string | null;   // the optional OBS output (MediaMTX)
-  media?: string;                           // HLS playlist path of the run's picture, for the app's player
+  storage_bytes?: number;
+  media?: string | null;                    // retained video only
   created: number; started?: number; ended?: number; log: [number, string][];
 }
 
@@ -29,6 +30,7 @@ export interface Anchor { T0: number; p0: number; delay: number }
 export interface Playout { pt: number; frames: number; dups: number; slate: number; events: number; max_late_ms: number }
 
 export interface Health {
+  progress?: { ranges?: [number, number][]; position?: number; done?: boolean };
   running?: Record<string, boolean>; mem_mb?: Record<string, number>;
   playout?: Partial<Playout>; anchor?: Anchor | null;
 }

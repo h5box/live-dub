@@ -99,8 +99,9 @@ header p { margin-top: 8px; color: var(--ink-2); }
 .step { padding: 20px; }
 h2 { font-size: 16px; margin-bottom: 8px; }
 p { line-height: 1.7; margin-bottom: 12px; }
-label { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+label { display: flex; align-items: center; gap: 12px; margin: 10px 0; white-space: nowrap; }
 label .input { flex: 1; min-width: 0; }
+label .select { flex: 1; min-width: 0; width: auto; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .error { color: var(--critical); }
 summary { cursor: pointer; font-weight: 600; }

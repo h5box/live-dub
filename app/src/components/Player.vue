@@ -4,8 +4,8 @@
 // runs, "follow" keeps the picture at the default schedule (first frame + delay D, the run's anchor); pausing,
 // skipping or clicking a line stops following until 回到实时.
 import Hls, { type Fragment, type LevelDetails } from "hls.js";
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { BASE } from "../api/client";
+import { computed, onActivated, onDeactivated, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { api, BASE } from "../api/client";
 import type { Anchor } from "../api/types";
 import { getMixer } from "../lib/dubAudio";
 import { clock } from "../lib/format";
@@ -14,14 +14,16 @@ import type { Row } from "../lib/rows";
 import { live, player } from "../stores/live";
 import Icon from "./Icon.vue";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   media: string | null;      // playlist path (/api/sessions/<name>/media/index.m3u8)
   session: string | null;    // run name (for the dub clips)
   rows: Row[];
   anchor: Anchor | null;
   running: boolean;          // the session is running: follow the default schedule
   dubOn: boolean;            // the session makes dubs
-}>();
+  isLive?: boolean;
+  processed?: [number, number][];
+}>(), { isLive: true });
 
 const box = ref<HTMLElement | null>(null);
 const video = ref<HTMLVideoElement | null>(null);
@@ -30,6 +32,11 @@ let hls: Hls | null = null;
 let frags: Fragment[] = [];
 let loaded = "";            // the playlist hls.js was given
 let retry = 0;
+let failures = 0;
+let visible = true, lastSave = 0;
+function checkpoint() {
+  if (props.session && st.started && st.pt !== null) save(`position:${props.session}`, st.pt);
+}
 
 const st = reactive({
   pt: null as number | null, first: null as number | null, edge: null as number | null, vod: false,
@@ -82,17 +89,23 @@ function setup() {
     st.first = a ? pdt(a) : null;
     st.edge = z ? pdt(z) + z.duration : null;
     st.vod = !details.live;
+    if (!st.started && (!props.running || !props.isLive) && props.session) {
+      const position = load<number | null>(`position:${props.session}`, null);
+      if (position !== null) seekPT(position);
+    }
   };
   hls.on(Hls.Events.LEVEL_LOADED, (_, d) => onLevel(d.details));
+  hls.on(Hls.Events.FRAG_LOADED, () => { failures = 0; });
   hls.on(Hls.Events.LEVEL_UPDATED, (_, d) => onLevel(d.details));
   hls.on(Hls.Events.ERROR, (_, d) => {
     if (!d.fatal) return;
+    if (++failures > 5) { st.error = "多次无法读取视频，请检查网络后重试。"; return; }
     const manifest = [Hls.ErrorDetails.MANIFEST_LOAD_ERROR, Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT,
       Hls.ErrorDetails.MANIFEST_PARSING_ERROR, Hls.ErrorDetails.LEVEL_EMPTY_ERROR].includes(d.details);
-    if (manifest) retry = window.setTimeout(setup, 2000);          // not there yet (the run is starting): again
+    if (manifest) retry = window.setTimeout(setup, 2000);
     else if (d.type === Hls.ErrorTypes.NETWORK_ERROR) retry = window.setTimeout(() => hls?.startLoad(), 1000);
     else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) hls?.recoverMediaError();
-    else st.error = `播放出错：${d.details}`;
+    else st.error = "视频无法解码，请重试或换一个视频。";
   });
   loaded = props.media;
   hls.loadSource(BASE + props.media);
@@ -130,6 +143,9 @@ function seekPT(pt: number, follow = false) {
   st.started = true;
   mixer.stopAll();
   v.currentTime = t;
+  if (!follow && !props.isLive && props.running && !(props.processed ?? []).some(([s, e]) => s <= pt && pt <= e)) {
+    api.prioritize(pt).catch((e) => { live.error = (e as Error).message; });
+  }
 }
 const skip = (d: number) => { if (st.pt !== null) seekPT(st.pt + d); };
 function backToLive() { player.follow = true; play(); }
@@ -141,7 +157,7 @@ const onFs = () => (st.fs = !!document.fullscreenElement);
 
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement;
-  if (!props.media || ["INPUT", "SELECT", "TEXTAREA"].includes(t?.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!visible || !props.media || ["INPUT", "SELECT", "TEXTAREA"].includes(t?.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === " ") { e.preventDefault(); toggle(); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); skip(-5); }
   else if (e.key === "ArrowRight") { e.preventDefault(); skip(5); }
@@ -154,14 +170,20 @@ const target = () => (props.anchor ? props.anchor.p0 + (Date.now() / 1000 + live
 let raf = 0, lastPub = 0, lastFetch = 0, lastKick = 0;
 function loop() {
   raf = requestAnimationFrame(loop);
+  if (!visible) return;
   const v = video.value;
   if (!v || !hls) return;
   const pt = frags.length ? ptAt(v.currentTime) : null;
   st.pt = pt;
   const now = performance.now();
+  if (now - lastSave > 5000) { checkpoint(); lastSave = now; }
   if (now - lastPub > 200) { player.pt = st.started ? pt : null; lastPub = now; }
   // follow the default schedule while the session runs
-  const tg = props.running && player.follow ? target() : null;
+  const tg = props.running && props.isLive && player.follow ? target() : null;
+  if (props.running && !props.isLive && !st.started && !st.needClick && st.first !== null &&
+      (props.processed ?? []).some(([s, e]) => s <= st.first! + 1 && e > st.first! + 1)) {
+    seekPT(st.first); play();
+  }
   if (tg !== null && st.first !== null && st.edge !== null && tg >= st.first && !v.seeking) {
     if (v.paused && !st.needClick) {
       if (now - lastKick > 1500) { lastKick = now; seekPT(tg, true); play(); }   // one kick, then let it load
@@ -174,21 +196,25 @@ function loop() {
     if (playing) mixer.tick(props.rows, pt, props.dubOn && prefs.dub > 0);
   }
 }
+const handleSeek = (pt: number) => { seekPT(pt); if (video.value?.paused) play(); };
 onMounted(() => {
   raf = requestAnimationFrame(loop);
   window.addEventListener("keydown", onKey);
   document.addEventListener("fullscreenchange", onFs);
-  player.seek = (pt: number) => { seekPT(pt); if (video.value?.paused) play(); };
+  player.seek = handleSeek;
 });
+onActivated(() => { visible = true; mixer.use(props.session ?? ""); if (video.value) mixer.attach(video.value); player.seek = handleSeek; });
+onDeactivated(() => { visible = false; checkpoint(); video.value?.pause(); if (player.seek === handleSeek) player.seek = null; });
 onBeforeUnmount(() => {
+  checkpoint();
   cancelAnimationFrame(raf);
   window.removeEventListener("keydown", onKey);
   document.removeEventListener("fullscreenchange", onFs);
-  player.seek = null;
+  if (player.seek === handleSeek) player.seek = null;
   teardown();
 });
 
-function onPause() { st.playing = false; mixer.stopAll(); }
+function onPause() { checkpoint(); st.playing = false; mixer.stopAll(); }
 function onSeeking() { mixer.stopAll(); }
 function onPlaying() { st.playing = true; st.waiting = false; st.started = true; }
 function onEnded() { st.ended = true; st.playing = false; mixer.stopAll(); }
@@ -230,7 +256,7 @@ const zhRows = computed(() => wrapZh(line.value?.zh ?? ""));
 const p0 = computed(() => props.anchor?.p0 ?? st.first ?? 0);
 const countdown = computed(() => {
   void live.now;                          // re-evaluate with the store's clock
-  const tg = props.running ? target() : null;
+  const tg = props.running && props.isLive && player.follow ? target() : null;
   return tg !== null && st.first !== null && tg < st.first ? Math.ceil(st.first - tg) : null;
 });
 const veil = computed(() => {
@@ -271,6 +297,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
         <p v-if="prefs.subs !== 'en' && line.zh" class="zh"><template v-for="(r, i) in zhRows" :key="i"><br v-if="i" />{{ r }}</template></p>
         <p v-if="prefs.subs !== 'zh' && line.en" class="en">{{ line.en }}</p>
       </div>
+      <span v-if="props.running && !props.isLive && st.pt !== null && !(props.processed ?? []).some(([s, e]) => s <= st.pt! && st.pt! <= e)" class="preparing">正在准备当前片段的字幕</span>
       <div v-if="veil" class="veil" :class="veil.kind">
         <template v-if="veil.kind === 'idle'"><slot name="idle" /></template>
         <template v-else-if="veil.kind === 'count'">
@@ -281,6 +308,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
           <Icon v-if="veil.kind === 'wait'" name="spinner" :size="22" class="spin" />
           <Icon v-else-if="veil.kind === 'error'" name="error" :size="22" />
           <span>{{ veil.text }}</span>
+          <button v-if="veil.kind === 'error'" class="btn" @click.stop="failures = 0; setup()">重试播放</button>
         </template>
       </div>
     </div>
@@ -292,14 +320,14 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
       <button class="btn ghost icon" title="前进 10 秒（→）" @click="skip(10)"><Icon name="fwd10" :size="17" /></button>
       <span class="time num">{{ st.pt !== null ? clock(st.pt - p0) : "—" }}</span>
       <div class="scrub" @pointerdown="scrub" @pointermove="hoverPT = ptFromEvent($event)" @pointerleave="hoverPT = null">
-        <div class="track"><i class="done" :style="{ width: pos(st.pt) + '%' }" /></div>
-        <i v-if="props.running && target() !== null" class="mark" :style="{ left: pos(target()) + '%' }" title="默认延时的位置" />
+        <div class="track"><i v-for="([s, e], i) in props.processed ?? []" :key="i" class="prepared" :style="{ left: pos(s) + '%', width: Math.max(0, pos(e) - pos(s)) + '%' }" /><i class="done" :style="{ width: pos(st.pt) + '%' }" /></div>
+        <i v-if="props.running && props.isLive && target() !== null" class="mark" :style="{ left: pos(target()) + '%' }" title="默认延时的位置" />
         <i class="thumb" :style="{ left: pos(st.pt) + '%' }" />
         <span v-if="hoverPT !== null" class="tip num" :style="{ left: pos(hoverPT) + '%' }">{{ clock(hoverPT - p0) }}</span>
       </div>
-      <button v-if="props.running" class="btn sm live" :class="{ on: player.follow && (behind ?? 0) < 3 }"
+      <button v-if="props.running && props.isLive" class="btn sm live" :class="{ on: player.follow && (behind ?? 0) < 3 }"
               :title="player.follow ? '跟着默认延时播放' : '回到默认延时的位置'" @click="backToLive">
-        <i />{{ player.follow && (behind ?? 0) < 3 ? "实时" : behind !== null && behind > 0 ? `晚 ${Math.round(behind)} 秒` : "回到实时" }}
+        <i />{{ player.follow && (behind ?? 0) < 3 ? `直播 · 延时 ${props.anchor?.delay ?? 30} 秒` : "回到直播位置" }}
       </button>
       <select v-model="prefs.subs" class="select subsel" title="字幕">
         <option value="zhen">中英</option><option value="zh">中文</option><option value="en">原文</option><option value="off">关字幕</option>
@@ -318,6 +346,8 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
 </template>
 
 <style scoped>
+.preparing { position: absolute; top: 12px; left: 12px; padding: 6px 10px; background: #000a; border-radius: 6px; color: #fff; font-size: 12px; }
+.track .prepared { position: absolute; height: 100%; background: var(--accent); opacity: 0.35; }
 .player { display: flex; flex-direction: column; min-width: 0; background: #000; border-radius: var(--radius); overflow: hidden;
   border: 1px solid var(--border); }
 .player.fs { border-radius: 0; border: 0; }

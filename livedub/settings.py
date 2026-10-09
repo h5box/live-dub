@@ -32,8 +32,8 @@ DEFAULTS = {
     "models_dir": "models",              # local translation models (GGUF)
     "keep_media_runs": 5,                # sessions that keep their video chunks (the rest keep subtitles only)
     "tools": {
-        "ffmpeg": "ffmpeg",
-        "ffprobe": "ffprobe",
+        "ffmpeg": "",
+        "ffprobe": "",
         "llama_server": "",              # "" = tools/llama.cpp/llama-server, then PATH
         "mediamtx": "",                  # "" = tools/mediamtx/mediamtx, then PATH (only for the OBS output)
         "js_runtime": "",                # for YouTube (yt-dlp): "" = deno or node, whichever is installed
