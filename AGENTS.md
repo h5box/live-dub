@@ -4,7 +4,7 @@
 - live-dub：外语直播或视频的实时中文字幕与原音色中文配音；用户入口见 README.md。
 - 技术栈：Python、Vue 3 / TypeScript、Tauri 2；识别 CPU，翻译与配音可用 GPU。
 - 后端入口：`uv run python -m livedub.server`，默认 127.0.0.1:8090。
-- 环境：Windows + WSL 2 或 Linux；`uv sync` 安装，`uv run python -m livedub.doctor` 检查。
+- 环境：Windows 原生字幕，配音需 WSL 2；Linux 默认 NeMo；`uv sync` 安装，doctor 检查。
 - 先读存在的 AGENTS.local.md；机器专属信息只放该文件或 settings.json，不进 git。
 - 前端开发和验证见 app/AGENTS.md；实验索引见 bench/README.md。
 
@@ -63,3 +63,4 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 - 10-10 07:30：Windows 默认原生 ONNX 识别；保留 NeMo 热词方案；字幕优先、配音按需安装。
 - 10-10 07:36：点播提前处理并支持跳转优先；OBS 沿用实时处理；已生成字幕和时间范围保留。
 - 10-10 07:36：历史支持回放、续看、SRT 导出；清理缓存保留字幕，删除整场需界面确认。
+- 10-10 07:56：0.2.0 预览版已发布，独立 Windows 构建通过；干净机安装与用户试用仍待验证。
