@@ -56,7 +56,7 @@ def best_variant(url, max_h=1080):
 
 def yt_dlp_argv(cookies=None, cookies_from_browser=None):
     """yt-dlp from this environment; YouTube needs a JavaScript runtime (deno or node) for its player challenges."""
-    cmd = [sys.executable, "-m", "yt_dlp", "--no-warnings"]
+    cmd = settings.python_argv("yt_dlp") + ["--no-warnings"]
     js = settings.js_runtime()
     if js:
         cmd += ["--js-runtimes", js, "--remote-components", "ejs:github"]
@@ -271,7 +271,7 @@ def main():
             # ffmpeg's HLS reader fetches segments one after another: one stalled request (seen on YouTube through a
             # proxy: TLS keepalive resets, ~10 s to first byte) puts it behind the 30 s playlist window and the
             # segments it missed are skipped. streamlink fetches ahead in parallel and retries; ffmpeg just cuts.
-            sl = subprocess.Popen([sys.executable, "-m", "streamlink", "--loglevel", "warning", "--stream-segment-threads", "3",
+            sl = subprocess.Popen(settings.python_argv("streamlink") + ["--loglevel", "warning", "--stream-segment-threads", "3",
                                    "--stream-segment-attempts", "5", "--stream-segment-timeout", "8",
                                    "--hls-live-edge", "3", "--hls-playlist-reload-attempts", "5",
                                    "-O", "hls://" + url, "best"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)

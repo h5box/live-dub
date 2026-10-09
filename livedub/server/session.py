@@ -22,8 +22,8 @@ from . import procs
 from .services import Services
 
 RUNS = settings.runs_dir()
-CONFIGS = ROOT / "configs"
-LOCAL_CONFIGS = CONFIGS / "local"       # the user's own presets (not in git)
+CONFIGS = settings.RESOURCES / "configs"
+LOCAL_CONFIGS = ROOT / "configs" / "local"
 NAME_RE = r"\w[\w.-]*"                  # a run directory / preset name, nothing else
 OBS_URL = settings.obs_url()            # fixed: OBS keeps one media source across sessions
 ROLES = ("ingest", "playout", "processor")
@@ -260,7 +260,7 @@ class Session:
     def _procs(self, d: Path | None = None) -> dict[str, list[psutil.Process]]:
         dq = re.escape(str(self._rel(d)))
         found = {r: [] for r in ROLES}
-        for p in procs.find(rf"livedub\.(ingest|playout|processor) .*{dq}", ("python",)):
+        for p in procs.find(rf"livedub\.(ingest|playout|processor) .*{dq}"):
             try:
                 role = re.search(r"livedub\.(\w+)", " ".join(p.cmdline())).group(1)
                 found[role].append(p)
@@ -361,7 +361,7 @@ class Session:
             await self.svc.start("mediamtx")
             if not await self.svc.wait_up("mediamtx", 30):
                 raise RuntimeError("MediaMTX 起不来")
-        want_boost = list(cfg.get("asr_boost", []))
+        want_boost = list(cfg.get("asr_boost", [])) if settings.get()["asr"]["backend"] == "nemo" else []
         if s["asr"]["up"] and s["asr"].get("boost", []) != want_boost:
             self.step("识别服务的热词和本场配置不同，用本场配置重启识别")
             await self.svc.stop("asr")
@@ -392,7 +392,7 @@ class Session:
     def _launch(self, cfg: dict):
         d, rel = self.dir, self.dir.relative_to(ROOT) if self.dir.is_relative_to(ROOT) else self.dir
         link = source_kind(cfg["src"]) == "link"
-        py = [sys.executable, "-m"]   # the backend's own environment
+        py = [sys.executable, *([] if settings.FROZEN else ["-m"])]
         # the source comes from config.json, so a user's path or URL never goes through a command line
         ing = py + ["livedub.ingest", "--src-config", str(rel / "config.json"), str(rel / "buf"),
                     "--delay", str(cfg.get("delay_s", 30))]

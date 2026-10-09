@@ -6,6 +6,7 @@ use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
+use tauri::Manager;
 
 fn backend_up() -> bool {
     TcpStream::connect_timeout(&"127.0.0.1:8090".parse().unwrap(), Duration::from_millis(300)).is_ok()
@@ -45,16 +46,27 @@ fn python_command(root: &Path) -> Command {
     c
 }
 
-fn start_backend() {
+fn start_backend(resources: &Path) {
     if backend_up() {
         return;
     }
-    let Some(root) = project_root() else { return };
+    let bundled = resources.join("backend").join("LiveDubBackend.exe");
+    let (root, mut cmd) = if bundled.is_file() {
+        let root = std::env::var_os("LIVEDUB_HOME").map(PathBuf::from).unwrap_or_else(|| {
+            PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default()).join("LiveDub")
+        });
+        (root, Command::new(bundled))
+    } else {
+        let Some(root) = project_root() else { return };
+        let cmd = python_command(&root);
+        (root, cmd)
+    };
     let logs = root.join("logs");
     let _ = std::fs::create_dir_all(&logs);
-    let mut cmd = python_command(&root);
-    cmd.args(["-m", "livedub.server"])
-        .current_dir(&root)
+    if !resources.join("backend").join("LiveDubBackend.exe").is_file() {
+        cmd.arg("-m");
+    }
+    cmd.arg("livedub.server").current_dir(&root)
         .env("PYTHONIOENCODING", "utf-8")
         .stdin(std::process::Stdio::null());
     if let Ok(f) = std::fs::File::create(logs.join("server.log")) {
@@ -80,8 +92,11 @@ fn start_backend() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    start_backend();
     tauri::Builder::default()
+        .setup(|app| {
+            start_backend(&app.path().resource_dir()?);
+            Ok(())
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .run(tauri::generate_context!())

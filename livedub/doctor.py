@@ -62,7 +62,10 @@ def checks() -> list[dict]:
     # the Linux side: one call checks every path the speech services need
     a, d = s["asr"], s["dub"]
     side = "WSL" if WSL else "Linux"
-    paths = {"asr_py": a["python"], "asr_model": a["model"], "asr_spk": a["speaker_model"], "dub_py": d["python"]}
+    native = a["backend"] == "onnx"
+    paths = {"dub_py": d["python"]}
+    if not native:
+        paths.update(asr_py=a["python"], asr_model=a["model"], asr_spk=a["speaker_model"])
     if d["backend"] == "omni":
         paths.update(dub_vllm=d["vllm"], dub_model=d["model"], dub_aux=d["model"].rstrip("/") + "/hf_cache/bigvgan")
     elif d["backend"] == "local":
@@ -76,13 +79,20 @@ def checks() -> list[dict]:
         missing, err = set(paths), str(e)
     fix_side = ("先装 WSL 2：在管理员 PowerShell 里运行 wsl --install，重启后按提示建好 Ubuntu" if WSL
                 else "需要 bash")
-    out.append(item("识别", f"{side} 环境", err is None, "" if err else err, fix_side))
+    out.append(item("配音（可选）" if native else "识别", f"{side} 环境", err is None, "" if err else err,
+                    fix_side, "optional" if native else "required"))
     asr_ok = err is None and not missing & {"asr_py", "asr_model", "asr_spk"}
-    out.append(item("识别", "识别环境（Parakeet + TitaNet，CPU）", asr_ok,
+    if native:
+        from .asr import FILES
+        model_dir = settings.path(a["onnx_dir"])
+        ready = all((model_dir / f).is_file() for f in FILES)
+        out.append(item("识别", "原生 CPU 识别（ONNX，无需 WSL）", ready, str(model_dir), "打开首次设置，下载识别模型"))
+    else:
+        out.append(item("识别", "识别环境（Parakeet + TitaNet，CPU）", asr_ok,
                     a["model"] if asr_ok else "缺：" + "、".join(
                         {"asr_py": "Python 环境", "asr_model": "Parakeet 模型", "asr_spk": "TitaNet 模型"}[k]
                         for k in ("asr_py", "asr_model", "asr_spk") if k in missing),
-                    f"在项目目录运行 {LINUX_RUN} scripts/linux/setup_asr.sh（约 6 GB，十几分钟）"))
+                        f"在项目目录运行 {LINUX_RUN} scripts/linux/setup_asr.sh（约 6 GB，十几分钟）"))
 
     # translation: a local model (llama-server + GGUF) or an online provider; one of them is enough
     g = "翻译"

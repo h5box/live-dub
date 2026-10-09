@@ -33,7 +33,7 @@
 
 | 想要的效果 | 需要 |
 | --- | --- |
-| 中文字幕（线上翻译） | 4 核以上 CPU、16 GB 内存（识别服务占约 6 GB）；Windows 要开 WSL 2（识别跑在里面），Linux 直接装 |
+| 中文字幕（线上翻译） | 4 核以上 CPU、16 GB 内存；Windows 默认原生 ONNX，无需 WSL；Linux 默认 NeMo |
 | + 本地翻译 | NVIDIA 显卡，约 5 GB 显存 |
 | + 中文配音 | NVIDIA 显卡，约 6.5 GB 显存（和本地翻译一起约 12 GB，16 GB 的卡放得下） |
 
@@ -41,6 +41,13 @@
 Linux 上同一套代码可以跑，但测得少。
 
 ## 安装
+
+普通 Windows 用户优先下载 [GitHub Releases](https://github.com/h5box/live-dub/releases) 的安装程序。
+安装后打开「设置向导」，下载字幕组件、填写并测试翻译接口，再播放内置英语测试片。
+字幕模式无需 Python、Node.js、WSL 或独立显卡；线上翻译按接口供应商价格计费。
+模型可选择存放目录。原音色配音是可选组件，仍需 NVIDIA 显卡与 WSL 2。
+
+下面是从源码运行的方法。
 
 下面是最短的路径，每一步的细节、常见问题见 [docs/安装.md](docs/安装.md)。装完随时可以运行环境检查，它会告诉你还缺什么、怎么补：
 
@@ -64,7 +71,7 @@ uv run python -m livedub.doctor
 
    Deno 是给 yt-dlp 解 YouTube 的播放校验用的（装 Node.js 也行）；Node.js 用来构建界面。
 
-2. 开 WSL 2：用管理员身份打开 PowerShell，运行 `wsl --install`，重启后按提示建好 Ubuntu 的用户名和密码。
+2. 仅配音或 NeMo 识别需要 WSL 2：在管理员 PowerShell 运行 `wsl --install`，重启后建 Ubuntu 用户。
    NVIDIA 驱动只在 Windows 里装，WSL 里不用另装。
 
 3. 下载代码，装 Python 依赖：
@@ -75,7 +82,8 @@ uv run python -m livedub.doctor
    uv sync
    ```
 
-4. 识别环境（必需，约 6 GB，十几分钟）：
+4. Windows 默认使用原生 ONNX 识别：构建界面并启动后，在「设置向导」下载模型（约 0.8 GB）。
+   如需 NeMo 识别热词增强，先将 `settings.json` 的 `asr.backend` 设为 `nemo`，再安装：
 
    ```powershell
    wsl -e bash scripts/linux/setup_asr.sh

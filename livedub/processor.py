@@ -398,7 +398,7 @@ def main():
         (clips / f"win_{win_no - 1:05d}.wav").unlink(missing_ok=True)  # ~1 MB a step: gigabytes over a live run
         wav = clips / f"win_{win_no:05d}.wav"
         write_wav(wav, x, SR)
-        res = post(f"{ASR_URL}/asr", {"wav": lpath(wav)})
+        res = post(f"{ASR_URL}/asr", {"wav": settings.asr_path(wav)})
         words = [{"w": w["w"], "s": commit + w["s"], "e": commit + w["e"]} for w in res["words"]]
         sents, tail = split_sentences(words)
         full = t1 - commit >= WINDOW - 0.5
@@ -419,7 +419,7 @@ def main():
             else:
                 continue
         spans = [[s[0]["s"] - commit, s[-1]["e"] - commit] for s in done]
-        embs = post(f"{ASR_URL}/embed", {"wav": lpath(wav), "spans": spans})["emb"]
+        embs = post(f"{ASR_URL}/embed", {"wav": settings.asr_path(wav), "spans": spans})["emb"]
         now = time.time()
         for s, e in zip(done, embs):
             sent = {"words": s, "spk": spk.assign(e, s[-1]["e"] - s[0]["s"]), "committed": now}

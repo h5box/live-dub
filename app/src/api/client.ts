@@ -1,5 +1,5 @@
 import type { DoctorReport, MtModel, Preset, Provider, Session, SessionDetail, SessionSummary, StartOpts, Status,
-  SvcInfo, SvcName } from "./types";
+  SvcInfo, SvcName, SetupStatus } from "./types";
 
 // the backend always listens on 127.0.0.1:8090 and also serves the built UI there, so a browser can open it too
 // (same origin, no base); VITE_API points the dev server elsewhere, e.g. at app/dev/mock_server.py
@@ -23,6 +23,9 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 }
 
 export const api = {
+  setupStatus: () => call<SetupStatus>("GET", "/api/setup"),
+  install: (component: "subtitles" | "youtube" | "dub", model_dir?: string) =>
+    call<SetupStatus>("POST", "/api/setup", { component, model_dir }),
   status: () => call<Status>("GET", "/api/status"),
   configs: () => call<Preset[]>("GET", "/api/configs"),
   sessions: () => call<SessionSummary[]>("GET", "/api/sessions"),

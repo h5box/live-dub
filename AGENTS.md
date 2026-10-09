@@ -13,7 +13,7 @@
 live-dub/
 ├── livedub/         本机处理链：settings、ingest、processor、mt、playout、subs
 │   └── server/     接口 app、场次 session、服务 services、进程 procs
-├── svc/            Linux CPU 识别服务 asr_service.py
+├── svc/            NeMo CPU 识别；原生 ONNX 入口 livedub/asr.py
 ├── dubsvc/         Linux GPU 配音服务
 │   └── omni/       vLLM-Omni 补丁和部署配置
 ├── app/            Vue 界面和 Tauri 外壳，详见 app/AGENTS.md
@@ -37,6 +37,7 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 - docs/原理.md：时间锚点和处理链；docs/配置.md：设置项；docs/接口.md：后端接口。
 - docs/安装.md：完整环境安装；app/README.md：前端构建、假后端、页面与代码。
 - bench/README.md：实验和分析脚本；docs/dev/README.md：实测与调研导航。
+- docs/2026-10/大众用户改进.md：安装、原生识别与观看体验改进状态。
 
 ## 项目约束
 - 画面不等处理：赶不上播出就去配音、退回原文、最终不叠加；下一句照常。
@@ -58,3 +59,4 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 ## 项目记忆
 - 10-10 06:57：自有代码采用 MIT；第三方衍生文件保留原许可；GitHub 为 h5box/live-dub。
 - 10-10 06:57：首次公开只发布当前快照，保留本地旧历史；后续发布沿公开分支继续。
+- 10-10 07:30：Windows 默认原生 ONNX 识别；保留 NeMo 热词方案；字幕优先、配音按需安装。

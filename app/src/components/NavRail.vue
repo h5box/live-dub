@@ -5,13 +5,14 @@ import { cycleTheme, theme } from "../lib/prefs";
 import { live, onAir, session } from "../stores/live";
 import Icon from "./Icon.vue";
 
-export type View = "live" | "history" | "services";
+export type View = "live" | "history" | "services" | "setup";
 const view = defineModel<View>({ required: true });
 
 const items: { id: View; label: string; icon: string }[] = [
   { id: "live", label: "观看", icon: "live" },
   { id: "history", label: "历史", icon: "history" },
   { id: "services", label: "环境", icon: "services" },
+  { id: "setup", label: "设置向导", icon: "check" },
 ];
 
 const gpu = computed(() => live.status?.gpu ?? {});

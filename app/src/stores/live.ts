@@ -27,7 +27,7 @@ export const live = reactive({
 export const rowMap = reactive(new Map<string, Row>());
 
 /** the start form (remembered per window) */
-export const form = reactive(load("form2", { preset: "default", src: "", delay: 30, dub: true, obs: false, mt_model: "" }));
+export const form = reactive(load("form2", { preset: "default", src: "", delay: 30, dub: false, obs: false, mt_model: "" }));
 watch(form, () => save("form2", { ...form }), { deep: true });
 
 /** the in-app player: the program time it shows (null = nothing loaded), whether it follows the default delay, and
@@ -125,6 +125,10 @@ export async function loadPresets() {
     const p = ps.find((x) => x.name === "default") ?? ps[0];
     form.preset = p.name;
     form.delay = p.delay_s;
+  }
+  const selected = form.mt_model || live.models.find((m) => m.default)?.key;
+  if (!live.models.find((m) => m.key === selected)?.ready) {
+    form.mt_model = live.models.find((m) => m.ready)?.key ?? "";
   }
 }
 

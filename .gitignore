@@ -16,6 +16,7 @@ data/
 outputs/
 logs/
 .tmp/
+dist/
 
 # 权重与媒体大文件
 *.safetensors

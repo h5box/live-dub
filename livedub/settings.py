@@ -17,7 +17,11 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+FROZEN = bool(getattr(sys, "frozen", False))
+RESOURCES = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+ROOT = (Path(os.environ.get("LIVEDUB_HOME") or str(Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "LiveDub"))
+        if FROZEN else RESOURCES)
+ROOT.mkdir(parents=True, exist_ok=True)
 WINDOWS = os.name == "nt"
 EXE = ".exe" if WINDOWS else ""
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # creationflags for helper processes on Windows
@@ -45,6 +49,8 @@ DEFAULTS = {
         "home": "~/live-dub",            # venvs and models of the speech services (scripts/linux/setup_*.sh)
     },
     "asr": {
+        "backend": "onnx" if WINDOWS else "nemo",
+        "onnx_dir": "models/parakeet-onnx",
         "python": "{home}/venv-asr/bin/python",
         "model": "{home}/models/parakeet-tdt-0.6b-v2.nemo",
         "speaker_model": "{home}/models/titanet-large.nemo",
@@ -116,7 +122,10 @@ def save(update: dict) -> None:
     """Merge `update` into settings.json (creating it) and reload."""
     f = settings_file()
     cur = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
-    f.write_text(json.dumps(_merge(cur, update), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(json.dumps(_merge(cur, update), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.replace(f)
     reload()
 
 
@@ -124,6 +133,15 @@ def path(p: str | os.PathLike) -> Path:
     """A setting's path: absolute as given (~ expanded), else relative to the project root."""
     p = Path(os.path.expanduser(str(p)))
     return p if p.is_absolute() else ROOT / p
+
+
+def python_argv(module: str) -> list[str]:
+    """The frozen backend also dispatches worker modules; no system Python is required."""
+    return [sys.executable, *([] if FROZEN else ["-m"]), module]
+
+
+def asr_path(p: str | os.PathLike) -> str:
+    return str(Path(p).resolve()) if get()["asr"]["backend"] == "onnx" else to_linux(p)
 
 
 def runs_dir() -> Path:
@@ -153,8 +171,8 @@ def tool(name: str) -> str | None:
     if v:
         p = path(v)
         return str(p) if p.exists() else shutil.which(v)
-    if name in ("llama_server", "mediamtx"):
-        sub = ROOT / "tools" / ("llama.cpp" if name == "llama_server" else "mediamtx")
+    if name in ("llama_server", "mediamtx", "ffmpeg", "ffprobe", "deno"):
+        sub = ROOT / "tools" / {"llama_server": "llama.cpp", "ffprobe": "ffmpeg"}.get(name, name)
         hits = sorted(sub.rglob(exe + EXE)) if sub.exists() else []
         if hits:
             return str(hits[0])
@@ -176,8 +194,9 @@ def js_runtime() -> str | None:
         p = path(want)
         return f"{p.stem.lower()}:{p}" if p.exists() else None
     for name in ([want] if want else ["deno", "node"]):
-        if shutil.which(name):
-            return name
+        exe = tool(name)
+        if exe:
+            return f"{name}:{exe}"
     return None
 
 

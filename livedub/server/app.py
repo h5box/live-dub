@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import doctor, mt_chat, settings
+from .. import doctor, mt_chat, settings, setup
 from ..settings import ROOT
 from . import session as sess
 from .services import LABELS, Services, gpu_warnings, info as service_info, tail
@@ -72,6 +72,32 @@ async def status():
 @app.get("/api/configs")
 async def configs():
     return sess.list_configs()
+
+
+class SetupReq(BaseModel):
+    component: str = "subtitles"
+    model_dir: str | None = None
+
+
+@app.get("/api/setup")
+async def setup_status():
+    demo = settings.RESOURCES / "demo.mp4"
+    return {**setup.report(), "model_dir": str(settings.path(settings.get()["asr"]["onnx_dir"])),
+            "demo": str(demo) if demo.exists() else None}
+
+
+@app.post("/api/setup")
+async def setup_start(req: SetupReq):
+    if session.active:
+        raise HTTPException(409, "先停止观看，再安装组件")
+    if services.status.get("services", {}).get("asr", {}).get("up") and req.component == "subtitles":
+        await services.stop("asr")
+        if not await services.wait_down("asr", 30):
+            raise HTTPException(409, "识别服务未停止，请稍后重试")
+    try:
+        return await setup.start(req.component, req.model_dir)
+    except (RuntimeError, ValueError) as e:
+        raise HTTPException(409, str(e))
 
 
 @app.get("/api/models")
@@ -322,6 +348,6 @@ async def stream(request: Request):
     return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
-dist = ROOT / "app" / "dist"
+dist = settings.RESOURCES / "app" / "dist"
 if dist.exists():   # the built UI, so it can also be opened in a browser for debugging
     app.mount("/", StaticFiles(directory=dist, html=True), name="ui")

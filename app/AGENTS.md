@@ -31,6 +31,7 @@ Vite → dist → 后端托管 / Tauri 窗口
 ## 项目文档
 - README.md：运行、开发、页面功能、PT 换算和 Logo 图标生成。
 - ../docs/接口.md：接口数据；../docs/原理.md：时间同步设计。
+- SetupView.vue：组件下载、翻译配置与首段视频测试；下载状态通过 /api/setup 查询。
 
 ## 项目约束
 - 配色集中在 styles/tokens.css，light-dark() 支持系统、浅色和深色主题。

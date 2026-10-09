@@ -74,7 +74,7 @@ def info() -> dict:
     dub_what = {"omni": "IndexTTS-2.5（vLLM-Omni），克隆说话人音色", "local": "IndexTTS-2.5（进程内），克隆说话人音色",
                 "voxcpm": "VoxCPM2，克隆说话人音色"}.get(dub["backend"], dub["backend"])
     return {
-        "asr": {"what": "Parakeet 英文识别 + TitaNet 说话人", "where": f"{lin}，CPU", "port": str(settings.port("asr")),
+        "asr": {"what": "Parakeet 英文识别 + TitaNet 说话人" + ("（ONNX；不支持识别热词）" if s["asr"]["backend"] == "onnx" else ""), "where": f"{OS_NAME if s['asr']['backend'] == 'onnx' else lin}，CPU", "port": str(settings.port("asr")),
                 "boot": "约 30 秒", "logs": [rel(log_path("asr"))]},
         "mt": {"what": "本地翻译模型（llama-server）；用线上翻译时不需要", "where": f"{OS_NAME}，GPU",
                "port": str(settings.port("mt")), "boot": "约 1 分钟", "logs": [rel(log_path("mt"))]},
@@ -209,6 +209,12 @@ class Services:
 
     def start_asr(self, config: Path):
         a = settings.get()["asr"]
+        if a["backend"] == "onnx":
+            from ..asr import FILES
+            if any(not (settings.path(a["onnx_dir"]) / f).is_file() for f in FILES):
+                raise RuntimeError("原生识别模型还没装好，请打开首次设置下载模型")
+            procs.spawn(settings.python_argv("livedub.asr") + ["--port", str(settings.port("asr"))], log_path("asr"), cwd=ROOT)
+            return
         self._linux_check({"识别的 Python 环境": a["python"], "Parakeet 模型": a["model"],
                            "TitaNet 模型": a["speaker_model"]}, "识别服务")
         cmd = (f"exec env CUDA_VISIBLE_DEVICES= PYTHONUNBUFFERED=1 {sh(a['python'])} "
@@ -218,6 +224,9 @@ class Services:
         procs.spawn(settings.linux_argv(cmd), log_path("asr"), cwd=ROOT)
 
     def stop_asr(self):
+        if settings.get()["asr"]["backend"] == "onnx":
+            procs.kill(procs.find(rf"\blivedub\.asr\b.*--port\s+{settings.port('asr')}\b"))
+            return
         settings.linux_run("pkill -f '[a]sr_service.py'; true", timeout=30)
         procs.kill(procs.find(r"asr_service\.py", ("wsl", "bash")))
 
@@ -302,7 +311,7 @@ class Services:
         self.pending[name] = ("starting", time.time())
         try:
             if name == "asr":
-                await asyncio.to_thread(self.start_asr, kw.get("config") or ROOT / "configs" / "default.json")
+                await asyncio.to_thread(self.start_asr, kw.get("config") or settings.RESOURCES / "configs" / "default.json")
             elif name == "mt":
                 key = kw.get("model") or settings.get()["mt"]["default"]
                 if mt.models().get(key, {}).get("api"):   # online model: nothing local to start

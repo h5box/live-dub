@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "resources": { "../../dist/desktop/LiveDubBackend/": "backend/" },
+    "windows": { "nsis": { "languages": ["SimpChinese", "English"], "displayLanguageSelector": true } }
+  }
+}

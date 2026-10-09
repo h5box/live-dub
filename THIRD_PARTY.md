@@ -12,6 +12,7 @@
 | 模型 | 用途 | 来源 | 许可 |
 | --- | --- | --- | --- |
 | Parakeet-TDT-0.6B-v2 | 英文识别 | [nvidia/parakeet-tdt-0.6b-v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | CC BY 4.0 |
+| Parakeet / TitaNet ONNX | Windows 原生识别与声纹；转换自以上 NVIDIA 模型 | [Parakeet INT8](https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8)、[TitaNet ONNX](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models) | CC BY 4.0；模型转换由 sherpa-onnx 社区提供 |
 | TitaNet-L | 说话人声纹 | [nvidia/speakerverification_en_titanet_large](https://huggingface.co/nvidia/speakerverification_en_titanet_large) | CC BY 4.0 |
 | Index-Translate-9B（GGUF） | 本地翻译（默认） | [IndexTeam/Index-Translate-9B-GGUF](https://huggingface.co/IndexTeam/Index-Translate-9B-GGUF) | Apache-2.0 |
 | Hy-MT2-7B（GGUF） | 本地翻译（备选） | [tencent/Hy-MT2-7B-GGUF](https://huggingface.co/tencent/Hy-MT2-7B-GGUF) | Apache-2.0 |
@@ -46,6 +47,8 @@
 | NumPy、Pillow、psutil | | BSD-3-Clause、MIT-CMU、BSD-3-Clause |
 | [llama.cpp](https://github.com/ggml-org/llama.cpp) | 本地翻译的推理服务 | MIT |
 | [NVIDIA NeMo](https://github.com/NVIDIA/NeMo)、[PyTorch](https://pytorch.org/) | 识别服务 | Apache-2.0、BSD-3-Clause |
+| [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) / ONNX Runtime | 原生 CPU 识别与声纹 | Apache-2.0 / MIT |
+| SoundFile / libsndfile | 读取识别音频 | BSD-3-Clause / LGPL-2.1+ |
 | [vLLM](https://github.com/vllm-project/vllm)、[vLLM-Omni](https://github.com/vllm-project/vllm-omni) | 配音服务 | Apache-2.0 |
 | [index-tts](https://github.com/index-tts/index-tts) | 配音（备选后端） | bilibili Model Use License |
 | [MediaMTX](https://github.com/bluenviron/mediamtx) | OBS 输出的本机 RTMP 服务 | MIT |

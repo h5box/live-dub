@@ -69,6 +69,10 @@ export interface MtModel {
 
 export interface StartOpts { preset: string; src: string; delay: number; dub: boolean; obs: boolean; mt_model: string }
 
+export interface SetupStatus {
+  state: "idle" | "running" | "done" | "failed"; message: string; error: string; model_dir?: string; demo?: string | null;
+}
+
 export interface SessionSummary {
   name: string; title: string; state: SessionState; created: number; started?: number | null;
   ended?: number | null; delay_s: number; dub: boolean;
