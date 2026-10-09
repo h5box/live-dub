@@ -1,0 +1,16 @@
+[project]
+name = "live-dub"
+version = "0.1.0"
+description = "外语直播 / 视频实时翻译：中文字幕 + 克隆说话人音色的中文配音，固定延时让字幕、配音和说话人的嘴对上"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "av>=19.0.0",
+    "fastapi>=0.142.2",
+    "numpy>=2.5.3",
+    "pillow>=12.3.0",
+    "psutil>=7.2.2",
+    "streamlink>=7.0",
+    "uvicorn>=0.54.0",
+    "yt-dlp[default]>=2025.11.12",
+]

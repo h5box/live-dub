@@ -1,0 +1,117 @@
+diff --git a/vllm_omni/entrypoints/openai/tts_adapters/indextts2.py b/vllm_omni/entrypoints/openai/tts_adapters/indextts2.py
+index 500287e..c25777c 100644
+--- a/vllm_omni/entrypoints/openai/tts_adapters/indextts2.py
++++ b/vllm_omni/entrypoints/openai/tts_adapters/indextts2.py
+@@ -335,4 +335,7 @@ class IndexTTS25Adapter(IndexTTS2Adapter):
+         params["text_normalization"] = [bool(extras.get("text_normalization", True))]
+         speed = request.speed if request.speed is not None else 1.0
+         params["duration_factor"] = [1.0 / speed]
++        # live-dub: single-pass duration control, see model_executor/models/indextts2/indextts2_s2mel_decoder.py
++        if extras.get("target_s") is not None:
++            params["target_s"] = [float(extras["target_s"])]
+         return params
+diff --git a/vllm_omni/model_executor/models/indextts2/indextts2_s2mel_decoder.py b/vllm_omni/model_executor/models/indextts2/indextts2_s2mel_decoder.py
+index e48af91..e5e6ddc 100644
+--- a/vllm_omni/model_executor/models/indextts2/indextts2_s2mel_decoder.py
++++ b/vllm_omni/model_executor/models/indextts2/indextts2_s2mel_decoder.py
+@@ -463,6 +463,9 @@ class IndexTTS2S2MelDecoder(nn.Module):
+         semantic_time_scale = (
+             int(getattr(semantic_codec, "downsample_scale", 1) or 1) if self.semantic_codec_type == "enhanced" else 1
+         )
++        duration_factors = _livedub_target_factors(
++            request_infos, code_lens_list, duration_factors, semantic_time_scale * self.mel_code_to_frame_ratio
++        )
+         target_lengths_list = self._target_lengths(
+             code_lens_list,
+             semantic_time_scale=semantic_time_scale,
+@@ -1407,3 +1410,41 @@ class IndexTTS2S2MelDecoder(nn.Module):
+             "S2Mel DiT CUDA graph runner enabled (per-shape capture, LRU=%d)",
+             self.s2mel_dit_cuda_graph_max_graphs,
+         )
++
++
++# ---- live-dub: single-pass duration control -------------------------------------------------------------------
++# A request may carry extra_params.target_s (seconds). Its natural length is known only here, from the GPT code
++# count: frames = codes * semantic_time_scale * 1.72, 256-sample hop at 22.05 kHz. The factor is
++# target / natural, clamped to [0.85, 1.25] (the live-dub policy), then S2M + BigVGAN run once.
++# One JSON line per request goes to $LIVEDUB_OMNI_FACTOR_LOG so the caller (a serial queue) can read
++# natural_s / factor / clamped back.
++_LIVEDUB_MIN, _LIVEDUB_MAX = 0.85, 1.25
++_LIVEDUB_FRAME_S = 256 / 22050
++logger.info("[live-dub] single-pass target_s patch loaded")
++
++
++def _livedub_target_factors(infos, code_lens, factors, frames_per_code):
++    import json
++    import os
++    import time
++
++    out = list(factors)
++    for i, info in enumerate(infos or []):
++        t = info.get("target_s")
++        try:
++            t = float(t.item() if hasattr(t, "item") else t) if t is not None else -1.0
++        except Exception:
++            t = -1.0
++        natural_s = int(code_lens[i] * frames_per_code) * _LIVEDUB_FRAME_S
++        rec = {"t": time.time(), "codes": int(code_lens[i]), "natural_s": round(natural_s, 3), "target_s": t}
++        if t > 0 and natural_s > 0:
++            raw = t / natural_s
++            out[i] = min(max(raw, _LIVEDUB_MIN), _LIVEDUB_MAX)
++            rec.update(factor=round(out[i], 4), clamped=out[i] != raw)
++        else:
++            rec.update(factor=round(float(out[i]), 4), clamped=False)
++        path = os.environ.get("LIVEDUB_OMNI_FACTOR_LOG")
++        if path:
++            with open(path, "a") as f:
++                f.write(json.dumps(rec) + "\n")
++    return out
+diff --git a/vllm_omni/model_executor/models/indextts2/indextts2_talker.py b/vllm_omni/model_executor/models/indextts2/indextts2_talker.py
+index f9eae0c..40935ad 100644
+--- a/vllm_omni/model_executor/models/indextts2/indextts2_talker.py
++++ b/vllm_omni/model_executor/models/indextts2/indextts2_talker.py
+@@ -456,6 +456,7 @@ class IndexTTS2TalkerForConditionalGeneration(nn.Module):
+                 ref_mel = info_meta.get("ref_mel")
+                 style = info_meta.get("style")
+                 req_meta["duration_factor"] = info_meta.get("duration_factor", 1.0)
++                req_meta["target_s"] = info_meta.get("target_s", -1.0)
+                 if isinstance(s_ref, torch.Tensor):
+                     req_meta["S_ref"] = s_ref
+                 if isinstance(ref_mel, torch.Tensor):
+@@ -563,6 +564,7 @@ class IndexTTS2TalkerForConditionalGeneration(nn.Module):
+             return v[0] if isinstance(v, list) and v else default
+ 
+         duration_factor = float(_first("duration_factor", 1.0))
++        target_s = float(_first("target_s", -1.0) or -1.0)  # live-dub: <= 0 means no target
+         # Direct Omni callers bypass the serving adapter, so retain the
+         # model-side guard as the final fail-fast validation layer.
+         if not (INDEXTTS25_MIN_DURATION_FACTOR <= duration_factor <= INDEXTTS25_MAX_DURATION_FACTOR):
+@@ -738,6 +740,7 @@ class IndexTTS2TalkerForConditionalGeneration(nn.Module):
+                 "style": style.cpu().contiguous(),
+                 "use_gpt_latent": self.use_gpt_latent,
+                 "duration_factor": duration_factor,
++                "target_s": target_s,
+             },
+             "codes": {"mel": torch.zeros(0, dtype=torch.long, device=device)},
+         }
+diff --git a/vllm_omni/model_executor/stage_input_processors/indextts2.py b/vllm_omni/model_executor/stage_input_processors/indextts2.py
+index 3cf4e74..c09d859 100644
+--- a/vllm_omni/model_executor/stage_input_processors/indextts2.py
++++ b/vllm_omni/model_executor/stage_input_processors/indextts2.py
+@@ -147,6 +147,8 @@ def _build_s2mel_additional_information(
+ 
+     duration_factor = meta.get("duration_factor", 1.0)
+     additional_information["duration_factor"] = 1.0 if duration_factor is None else float(duration_factor)
++    target_s = meta.get("target_s")  # live-dub
++    additional_information["target_s"] = -1.0 if target_s is None else float(target_s)
+ 
+     for key in ("S_ref", "ref_mel", "style"):
+         val = meta.get(key)
+@@ -274,6 +276,7 @@ def talker2s2mel_full_payload(
+             "meta",
+             "duration_factor",
+         ),
++        "target_s": _get_payload_value(pooling_output, "meta.target_s", "meta", "target_s"),  # live-dub
+     }
+     additional_information = _build_s2mel_additional_information(
+         mel_seq,

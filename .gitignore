@@ -1,0 +1,43 @@
+# 本机设置与凭据（模板：settings.example.json、.secret.example/）
+settings.json
+.secret/
+.env
+.env.*
+!.env.example
+AGENTS.local.md
+
+# 自己的预设
+configs/local/
+
+# 下载的工具和模型、跑出来的东西、日志、临时文件
+tools/
+models/
+data/
+outputs/
+logs/
+.tmp/
+
+# 权重与媒体大文件
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.gguf
+*.nemo
+*.engine
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.mp4
+*.mkv
+*.flv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/

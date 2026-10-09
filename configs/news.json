@@ -1,0 +1,32 @@
+{
+ "name": "新闻直播",
+ "src": "",
+ "domain": "英文新闻直播",
+ "delay_s": 30,
+ "asr_boost": [],
+ "names": [],
+ "mt_target_cps": 5.0,
+ "mt_compact_at": 10000,
+ "speaker_threshold": 0.45,
+ "duck_db": -15,
+ "tag": "AI 翻译配音",
+ "glossary": {
+  "Prime Minister": "首相",
+  "Downing Street": "唐宁街",
+  "Westminster": "威斯敏斯特",
+  "White House": "白宫",
+  "Congress": "国会",
+  "Senate": "参议院",
+  "Parliament": "议会",
+  "Pentagon": "五角大楼",
+  "Kremlin": "克里姆林宫",
+  "United Nations": "联合国",
+  "UN": "联合国",
+  "NATO": "北约",
+  "EU": "欧盟",
+  "European Union": "欧盟"
+ },
+ "sub_bottom": 215,
+ "sub_box": 0.45,
+ "tag_corner": "tr"
+}

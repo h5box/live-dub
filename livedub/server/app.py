@@ -1,0 +1,327 @@
+"""HTTP API for the desktop app (127.0.0.1 only): service status, start / stop and logs, the environment check,
+online translation settings, session start / stop, past sessions (the list, one session's records), a session's
+picture for the app's player (HLS playlist + chunks) and its dub clips, and a Server-Sent Events stream with status
+every 2 s plus the session's subtitle and timing records as they are written. The built UI (app/dist) is served at /,
+so a browser can open it too."""
+import asyncio
+import json
+import os
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+from .. import doctor, mt_chat, settings
+from ..settings import ROOT
+from . import session as sess
+from .services import LABELS, Services, gpu_warnings, info as service_info, tail
+
+services = Services()
+session: sess.Session | None = None
+health: dict = {}
+
+
+async def poll():
+    global health
+    while True:
+        try:
+            await services.refresh()
+            health = await asyncio.to_thread(session.health)
+        except Exception as e:
+            print("poll:", e, flush=True)
+        await asyncio.sleep(2)
+
+
+@asynccontextmanager
+async def lifespan(app):
+    global session
+    session = sess.Session(services)
+    task = asyncio.create_task(poll())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="live-dub", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["http://tauri.localhost", "https://tauri.localhost",
+                                                  "tauri://localhost", "http://localhost:1420",
+                                                  "http://127.0.0.1:8090"],
+                   allow_methods=["*"], allow_headers=["*"])
+
+
+def snapshot() -> dict:
+    # t is the moment of sending (services.status carries the time of its last poll, seconds older under load)
+    st = {**services.status, "session": session.info, "health": health, "t": time.time()}
+    if session.active and services.status:   # during a session only what it uses matters (dubbing joins at its start)
+        st["warnings"] = gpu_warnings(services.status.get("gpu", {}), services.status.get("services", {}),
+                                      session.info.get("mt_model"), want_dub=False)
+    return st
+
+
+@app.get("/api/status")
+async def status():
+    if not services.status:
+        await services.refresh()
+    return snapshot()
+
+
+@app.get("/api/configs")
+async def configs():
+    return sess.list_configs()
+
+
+@app.get("/api/models")
+async def models():
+    return await asyncio.to_thread(sess.list_models)
+
+
+class SvcReq(BaseModel):
+    config: str | None = None
+    model: str | None = None
+
+
+@app.get("/api/services")
+async def services_info():
+    return service_info()
+
+
+@app.get("/api/services/{name}/log")
+async def service_log(name: str, lines: int = 200):
+    if name not in LABELS:
+        raise HTTPException(404)
+    return await asyncio.to_thread(tail, name, max(10, min(lines, 2000)))
+
+
+@app.get("/api/doctor")
+async def doctor_report():
+    items = await asyncio.to_thread(doctor.checks)
+    return {"items": items, **doctor.summary(items)}
+
+
+def _providers() -> list[dict]:
+    out = []
+    for name, base in mt_chat.PROVIDERS.items():
+        p = mt_chat.provider(name)
+        out.append({"name": name, "label": base.get("label", name), "base_url": p.get("base_url", ""),
+                    "model": p.get("model", ""), "has_key": bool(p.get("api_key")), "key_url": base.get("key_url", ""),
+                    "problem": mt_chat.problem(name, "" if name == "custom" else "x")})
+    return out
+
+
+class OnlineReq(BaseModel):
+    provider: str
+    base_url: str | None = None
+    model: str | None = None
+    api_key: str | None = None      # empty: keep the saved one
+
+
+@app.get("/api/settings/online")
+async def online_get():
+    return _providers()
+
+
+@app.post("/api/settings/online")
+async def online_set(req: OnlineReq):
+    """Save a provider's key (and base_url / model) to .secret/<provider>.json; the key is never sent back."""
+    if req.provider not in mt_chat.PROVIDERS:
+        raise HTTPException(404, f"没有线上翻译接口 {req.provider}")
+    f = settings.secret_file(req.provider)
+    cur = {}
+    if f.exists():
+        try:
+            cur = json.loads(f.read_text(encoding="utf-8"))
+        except ValueError:
+            cur = {}
+    for k in ("base_url", "model", "api_key"):
+        v = getattr(req, k)
+        if v is not None and (v.strip() or k != "api_key"):
+            cur[k] = v.strip()
+    f.parent.mkdir(exist_ok=True)
+    f.write_text(json.dumps(cur, ensure_ascii=False, indent=1), encoding="utf-8")
+    try:
+        os.chmod(f, 0o600)   # only this user (no effect on Windows, where the profile's ACLs apply)
+    except OSError:
+        pass
+    return _providers()
+
+
+@app.post("/api/settings/online/{name}/test")
+async def online_test(name: str):
+    """One tiny request with the saved settings: says whether the key, address and model work."""
+    if name not in mt_chat.PROVIDERS:
+        raise HTTPException(404)
+    p = mt_chat.provider(name)
+    model = p.get("model") or next((m.get("model") for m in sess.mt.models().values() if m.get("api") == name), "")
+    why = mt_chat.problem(name, model)
+    if why:
+        raise HTTPException(409, why)
+
+    def ping():
+        import urllib.error
+        import urllib.request
+        body = {"model": model, "messages": [{"role": "user", "content": "Translate to Chinese: hello"}],
+                "max_tokens": 16}
+        if p.get("deepseek_thinking"):
+            body["thinking"] = {"type": "disabled"}
+        req = urllib.request.Request(p["base_url"].rstrip("/") + "/chat/completions", json.dumps(body).encode(),
+                                     {"Content-Type": "application/json", "Authorization": "Bearer " + p["api_key"]})
+        t = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                j = json.load(r)
+            return {"ok": True, "reply": j["choices"][0]["message"]["content"][:60], "wall_s": round(time.time() - t, 2)}
+        except urllib.error.HTTPError as e:
+            return {"ok": False, "error": f"HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:200]}"}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"[:240]}
+    return await asyncio.to_thread(ping)
+
+
+@app.post("/api/services/{name}/{action}")
+async def service(name: str, action: str, req: SvcReq | None = None):
+    if name not in LABELS or action not in ("start", "stop", "restart"):
+        raise HTTPException(404)
+    if session.active and action != "start":
+        raise HTTPException(409, "正在直播，先停播再停服务")
+    req = req or SvcReq()
+    kw = {}
+    if req.config:
+        kw["config"] = sess.preset_file(req.config)
+    if req.model:
+        kw["model"] = req.model
+    if action in ("stop", "restart"):
+        await services.stop(name)
+        await services.wait_down(name, 60)
+    if action in ("start", "restart"):
+        try:
+            await services.start(name, **kw)
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
+    return {"ok": True}
+
+
+class StartReq(BaseModel):
+    preset: str = "default"
+    src: str | None = None          # a URL or a local video path; default: the preset's own
+    delay: float | None = None
+    dub: bool = True
+    obs: bool = False               # also burn and push a stream for OBS (MediaMTX)
+    mt_model: str | None = None
+
+
+@app.post("/api/session/start")
+async def start(req: StartReq):
+    if req.delay is not None and not 10 <= req.delay <= 120:
+        raise HTTPException(400, "延时 D 要在 10 到 120 秒之间")
+    try:
+        return await session.start(req.preset, req.src, req.delay, req.dub, req.obs, req.mt_model)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/session/stop")
+async def stop():
+    try:
+        return await session.stop()
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.get("/api/sessions")
+async def sessions():
+    out = []
+    for rj in sorted(sess.RUNS.glob("*/run.json"), reverse=True)[:50] if sess.RUNS.exists() else []:
+        try:
+            i = json.loads(rj.read_text(encoding="utf-8"))
+            out.append({k: i.get(k) for k in ("name", "title", "state", "created", "started", "ended", "delay_s", "dub")})
+        except Exception:
+            pass
+    return out
+
+
+@app.get("/api/sessions/{name}")
+async def session_detail(name: str):
+    d = await asyncio.to_thread(sess.run_detail, name)
+    if d is None:
+        raise HTTPException(404, f"没有这一场：{name}")
+    return d
+
+
+@app.get("/api/sessions/{name}/media/index.m3u8")
+async def media_playlist(name: str):
+    text = await asyncio.to_thread(sess.playlist, name)
+    if text is None:
+        raise HTTPException(404, "这一场没有可播的画面")
+    return Response(text, media_type="application/vnd.apple.mpegurl", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/sessions/{name}/media/{seg}")
+async def media_segment(name: str, seg: str):
+    p = sess.media_file(name, "seg", seg)
+    if p is None:
+        raise HTTPException(404)
+    return FileResponse(p, media_type="video/mp2t", headers={"Cache-Control": "max-age=86400"})
+
+
+@app.get("/api/sessions/{name}/clips/{clip}")
+async def media_clip(name: str, clip: str):
+    p = sess.media_file(name, "clip", clip)
+    if p is None:
+        raise HTTPException(404)
+    return FileResponse(p, media_type="audio/wav", headers={"Cache-Control": "max-age=86400"})
+
+
+def _read_new(path: Path, offs: dict) -> list[dict]:
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return []
+    off = offs.get(path, 0)
+    if size <= off:
+        return []
+    with open(path, "rb") as f:
+        f.seek(off)
+        data = f.read(size - off)
+    end = data.rfind(b"\n") + 1          # only whole lines; a half-written one is picked up next time
+    offs[path] = off + end
+    rows = []
+    for line in data[:end].decode("utf-8", "replace").splitlines():
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            pass
+    return rows
+
+
+def _sse(kind: str, data) -> str:
+    return f"event: {kind}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@app.get("/api/stream")
+async def stream(request: Request):
+    async def gen():
+        cur, offs, last = None, {}, 0.0
+        yield "retry: 2000\n\n"
+        while not await request.is_disconnected():
+            if time.time() - last >= 2:
+                last = time.time()
+                yield _sse("status", snapshot())
+            if session.dir != cur:
+                cur, offs = session.dir, {}
+                yield _sse("reset", {"name": (session.info or {}).get("name")})
+            if cur:
+                for fname, kind in (("events.jsonl", "event"), ("timing.jsonl", "timing")):
+                    rows = await asyncio.to_thread(_read_new, cur / fname, offs)
+                    if rows:
+                        yield _sse(kind, rows)
+            await asyncio.sleep(1)
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+dist = ROOT / "app" / "dist"
+if dist.exists():   # the built UI, so it can also be opened in a browser for debugging
+    app.mount("/", StaticFiles(directory=dist, html=True), name="ui")

@@ -1,0 +1,17 @@
+{
+  "tools": {
+    "ffmpeg": "C:/tools/ffmpeg/bin/ffmpeg.exe",
+    "ffprobe": "C:/tools/ffmpeg/bin/ffprobe.exe",
+    "llama_server": "D:/llama.cpp/llama-server.exe"
+  },
+  "models_dir": "D:/models/live-dub",
+  "mt": {
+    "default": "index-9b",
+    "models": {
+      "index-9b": {"path": "D:/models/live-dub/Index-Translate-9B.IQ4_XS.gguf"}
+    }
+  },
+  "youtube": {"cookies_from_browser": "firefox"},
+  "linux": {"distro": "Ubuntu", "home": "~/live-dub"},
+  "ports": {"mt": 18081}
+}

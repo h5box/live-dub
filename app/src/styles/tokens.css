@@ -1,0 +1,50 @@
+/* Design tokens. Every color is written once with light-dark(): the system setting decides unless the theme
+   switch pins data-theme on <html>. Chart chrome, series and status colors follow the dataviz reference palette
+   (series checked with its validate_palette.js against both surfaces). */
+:root {
+  color-scheme: light dark;
+
+  --plane: light-dark(#f9f9f7, #0d0d0d);        /* window background */
+  --surface: light-dark(#fcfcfb, #1a1a19);      /* cards, chart surface */
+  --surface-2: light-dark(#f2f1ed, #232321);    /* wells, hover */
+  --surface-3: light-dark(#e8e7e1, #2c2c2a);    /* pressed, selected */
+  --ink-1: light-dark(#0b0b0b, #ffffff);
+  --ink-2: light-dark(#52514e, #c3c2b7);
+  --ink-3: light-dark(#898781, #898781);
+  --grid: light-dark(#e1e0d9, #2c2c2a);
+  --axis: light-dark(#c3c2b7, #383835);
+  --border: light-dark(rgba(11, 11, 11, 0.10), rgba(255, 255, 255, 0.10));
+  --border-2: light-dark(rgba(11, 11, 11, 0.18), rgba(255, 255, 255, 0.18));
+
+  --accent: light-dark(#2a78d6, #3987e5);
+  --accent-hover: light-dark(#256abf, #5598e7);
+  --accent-soft: light-dark(rgba(42, 120, 214, 0.09), rgba(57, 135, 229, 0.15));
+  --accent-line: light-dark(rgba(42, 120, 214, 0.45), rgba(57, 135, 229, 0.55));
+  --on-accent: #ffffff;
+
+  --series-1: light-dark(#2a78d6, #3987e5);     /* subtitle margin */
+  --series-2: light-dark(#eb6834, #d95926);     /* dub margin */
+
+  /* status: fixed steps, always shown with an icon and a label */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: light-dark(#006300, #0ca30c);
+  --good-soft: light-dark(rgba(12, 163, 12, 0.09), rgba(12, 163, 12, 0.16));
+  --warning-soft: light-dark(rgba(250, 178, 25, 0.16), rgba(250, 178, 25, 0.13));
+  --critical-soft: light-dark(rgba(208, 59, 59, 0.09), rgba(208, 59, 59, 0.18));
+  --onair: #d03b3b;                              /* tally red: the session is on air */
+
+  --shadow: 0 1px 2px light-dark(rgba(11, 11, 11, 0.05), rgba(0, 0, 0, 0.5)),
+            0 8px 24px light-dark(rgba(11, 11, 11, 0.08), rgba(0, 0, 0, 0.45));
+
+  --font: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC",
+          "Noto Sans SC", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, "Noto Sans Mono CJK SC", monospace;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --gap: 12px;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
