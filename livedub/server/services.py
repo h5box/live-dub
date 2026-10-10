@@ -156,7 +156,8 @@ class Services:
         s = {}
         try:
             h = _get(settings.url("asr") + "/health")
-            s["asr"] = {"up": bool(h.get("ok")), "boost": h.get("boost", [])}
+            # the NeMo service does not name itself; the native one answers "onnx"
+            s["asr"] = {"up": bool(h.get("ok")), "boost": h.get("boost", []), "backend": h.get("backend", "nemo")}
         except Exception:
             s["asr"] = {"up": False}
         try:
@@ -224,11 +225,12 @@ class Services:
         procs.spawn(settings.linux_argv(cmd), log_path("asr"), cwd=ROOT)
 
     def stop_asr(self):
-        if settings.get()["asr"]["backend"] == "onnx":
-            procs.kill(procs.find(rf"\blivedub\.asr\b.*--port\s+{settings.port('asr')}\b"))
-            return
-        settings.linux_run("pkill -f '[a]sr_service.py'; true", timeout=30)
-        procs.kill(procs.find(r"asr_service\.py", ("wsl", "bash")))
+        # whichever kind is running: the setting may have changed since this one was started
+        procs.kill(procs.find(rf"\blivedub\.asr\b.*--port\s+{settings.port('asr')}\b"))
+        running = (self.status.get("services", {}).get("asr") or {}).get("backend")
+        if "nemo" in (running, settings.get()["asr"]["backend"]):
+            settings.linux_run("pkill -f '[a]sr_service.py'; true", timeout=30)
+            procs.kill(procs.find(r"asr_service\.py", ("wsl", "bash")))
 
     def start_mt(self, model_key: str):
         exe = settings.tool("llama_server")

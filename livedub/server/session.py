@@ -404,8 +404,15 @@ class Session:
             await self.svc.start("mediamtx")
             if not await self.svc.wait_up("mediamtx", 30):
                 raise RuntimeError("MediaMTX 起不来")
-        want_boost = list(cfg.get("asr_boost", [])) if settings.get()["asr"]["backend"] == "nemo" else []
-        if s["asr"]["up"] and s["asr"].get("boost", []) != want_boost:
+        backend = settings.get()["asr"]["backend"]
+        want_boost = list(cfg.get("asr_boost", [])) if backend == "nemo" else []
+        if s["asr"]["up"] and s["asr"].get("backend", "nemo") != backend:
+            # e.g. the NeMo service from before switching to native recognition: it cannot read this run's paths
+            self.step(f"正在运行的识别服务（{s['asr'].get('backend', 'nemo')}）和设置（{backend}）不同，按设置重启识别")
+            await self.svc.stop("asr")
+            await self.svc.wait_down("asr", 30)
+            s["asr"]["up"] = False
+        elif s["asr"]["up"] and s["asr"].get("boost", []) != want_boost:
             self.step("识别服务的热词和本场配置不同，用本场配置重启识别")
             await self.svc.stop("asr")
             await self.svc.wait_down("asr", 30)
