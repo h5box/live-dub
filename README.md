@@ -19,7 +19,8 @@
 [安装文档](docs/安装.md) ·
 [工作原理](docs/原理.md) ·
 [配置说明](docs/配置.md) ·
-[参与开发](AGENTS.md)
+[参与开发](AGENTS.md) ·
+[交流群](#交流群)
 
 <br>
 
@@ -236,6 +237,13 @@ cd ..
 - [ ] 在干净的 Windows 机器上验证安装，邀请非技术用户试用，提高组件下载成功率
 - [ ] 在界面中编辑场景的术语表和识别热词
 - [ ] 支持更多源语言
+
+## 交流群
+
+使用问题、想要的功能、试用反馈，欢迎来 QQ 群聊：群号 **817624142**，或者[点这里加群](https://qm.qq.com/q/q09hcuYC3K)。
+确定的 bug 请提 [Issue](https://github.com/h5box/live-dub/issues)，方便跟踪。
+
+<img src="docs/media/qq-group.webp" width="280" alt="QQ 群 live-hub 的二维码，群号 817624142">
 
 ## 许可证
 
