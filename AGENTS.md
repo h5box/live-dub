@@ -1,7 +1,7 @@
 # 参与开发
 
 ## 项目导航
-- live-dub：外语直播或视频的实时中文字幕与原音色中文配音；用户入口见 README.md。
+- live-dub（中文名：声影同传）：外语直播或视频的实时中文字幕与原音色中文配音；用户入口见 README.md。
 - 技术栈：Python、Vue 3 / TypeScript、Tauri 2；识别 CPU，翻译与配音可用 GPU。
 - 后端入口：`uv run python -m livedub.server`，默认 127.0.0.1:8090。
 - 环境：Windows 原生字幕，配音需 WSL 2；Linux 默认 NeMo；`uv sync` 安装，doctor 检查。

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="app/public/logo.svg" width="112" alt="live-dub">
+<img src="app/public/logo.svg" width="112" alt="声影同传 live-dub">
 
-# live-dub
+# 声影同传 · live-dub
 
 **英语直播与视频的中文字幕和原音色中文配音**
 
@@ -33,7 +33,7 @@
 
 ---
 
-live-dub 是一款个人观看用的翻译工具：把英语直播或视频翻译成中文，在画面上叠加中文字幕，
+声影同传（live-dub）是一款个人观看用的翻译工具：把英语直播或视频翻译成中文，在画面上叠加中文字幕，
 也可以用原说话人的音色念出中文配音。支持 YouTube、Twitch、m3u8 等链接和本地视频。
 
 - **直播**：画面延后播放（默认 30 秒），利用这段时间完成识别、翻译和配音，让每句字幕和配音都对准原话。
