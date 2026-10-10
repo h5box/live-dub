@@ -38,6 +38,20 @@ DUCK_DB, ATTACK, RELEASE, BRIDGE, HOLD = -15.0, 0.25, 1.0, 1.5, 0.15
 DUB_RMS = 0.08  # about -22 dBFS until the processor supplies a per-sentence gain
 
 
+def fit_1080(frame):
+    """A source frame on the 1920x1080 output with its aspect ratio kept: scaled to fit, the rest black
+    (a 2.39:1 film gets bars above and below instead of being stretched)."""
+    w, h = frame.width, frame.height
+    if (w, h) == (1920, 1080):
+        return frame.to_ndarray(format="rgb24")
+    s = min(1920 / w, 1080 / h)
+    fw, fh = min(1920, round(w * s / 2) * 2), min(1080, round(h * s / 2) * 2)
+    out = np.zeros((1080, 1920, 3), np.uint8)
+    y, x = (1080 - fh) // 2, (1920 - fw) // 2
+    out[y:y + fh, x:x + fw] = frame.reformat(width=fw, height=fh, format="rgb24").to_ndarray()
+    return out
+
+
 class ChunkReader(io.RawIOBase):
     """Concatenates seg_NNNNNN.ts as ingest writes them; a chunk counts as complete once the next one (or END) exists.
     timeout=None waits for the next chunk forever (live: a stalled source is the playout's slate, not an EOF).
@@ -246,9 +260,7 @@ class Source:
                 if dt > 0:
                     time.sleep(dt)
                 if isinstance(frame, av.VideoFrame):
-                    rgb = frame.to_ndarray(format="rgb24")
-                    if rgb.shape[:2] != (1080, 1920):
-                        rgb = frame.reformat(width=1920, height=1080, format="rgb24").to_ndarray()
+                    rgb = fit_1080(frame)
                     with self.lock:
                         self.video.append((p, rgb))
                     self.last_pt = p
