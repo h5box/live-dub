@@ -26,8 +26,8 @@ const starting = computed(() => ["starting", "stopping"].includes(session.value?
 
 <template>
   <nav class="rail">
-    <div class="mark" title="live-dub 外语直播实时翻译">
-      <img src="/logo.svg" width="36" height="36" alt="live-dub" />
+    <div class="mark" title="声影同传 · 外语直播实时翻译">
+      <img src="/logo.svg" width="36" height="36" alt="声影同传" />
     </div>
 
     <button v-for="it in items" :key="it.id" class="item" :class="{ on: view === it.id }"

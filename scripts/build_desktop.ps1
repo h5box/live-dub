@@ -14,7 +14,7 @@ Add-Type -AssemblyName System.Speech
 $voice = [System.Speech.Synthesis.SpeechSynthesizer]::new()
 $voice.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::NotSet, [System.Speech.Synthesis.VoiceAge]::NotSet, 0, [Globalization.CultureInfo]::GetCultureInfo('en-US'))
 $voice.SetOutputToWaveFile((Join-Path $PWD '.tmp/demo/demo.wav'))
-$voice.Speak('Welcome to LiveDub. This video tests English recognition and Chinese subtitles. You can pause the video and click a subtitle to watch that sentence again.')
+$voice.Speak('Welcome. This video tests English recognition and Chinese subtitles. You can pause the video and click a subtitle to watch that sentence again.')
 $voice.Dispose()
 ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'color=c=0x172b4d:s=960x540:r=25' -i .tmp/demo/demo.wav -c:v libx264 -g 25 -c:a aac -shortest .tmp/demo/demo.mp4
 Check-Exit

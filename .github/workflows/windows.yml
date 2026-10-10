@@ -36,5 +36,5 @@ jobs:
           } else {
             $releaseArgs = @()
             if ($env:GITHUB_REF_NAME -match '^v0\.') { $releaseArgs += '--prerelease' }
-            gh release create $env:GITHUB_REF_NAME app/src-tauri/target/release/bundle/nsis/*.exe --title "LiveDub $env:GITHUB_REF_NAME" --generate-notes @releaseArgs
+            gh release create $env:GITHUB_REF_NAME app/src-tauri/target/release/bundle/nsis/*.exe --title "声影同传 $env:GITHUB_REF_NAME" --generate-notes @releaseArgs
           }

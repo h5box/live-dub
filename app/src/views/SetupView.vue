@@ -60,7 +60,7 @@ onUnmounted(() => clearInterval(timer));
 
 <template>
   <div class="setup view">
-    <header><h1>开始使用 LiveDub</h1><p>先用 CPU 中文字幕，无需独立显卡。中文配音可以稍后安装。</p></header>
+    <header><h1>开始使用声影同传</h1><p>先用 CPU 中文字幕，无需独立显卡。中文配音可以稍后安装。</p></header>
     <p v-if="!live.link" class="notice">正在连接本机服务…</p>
     <section class="card step">
       <h2>1. 准备字幕组件</h2>
