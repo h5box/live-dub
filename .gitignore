@@ -33,6 +33,7 @@ dist/
 *.flac
 *.m4a
 *.mp4
+!docs/media/*.mp4
 *.mkv
 *.flv
 

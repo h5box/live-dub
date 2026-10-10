@@ -55,3 +55,11 @@
 | [Tauri](https://tauri.app/) | 桌面程序 | MIT / Apache-2.0 |
 | [Vue](https://vuejs.org/)、[Vite](https://vite.dev/) | 界面 | MIT |
 | [hls.js](https://github.com/video-dev/hls.js) | 播放器 | Apache-2.0 |
+
+## 演示素材
+
+| 文件 | 内容 | 许可 |
+| --- | --- | --- |
+| `docs/media/demo.mp4`、`docs/media/demo.avif`、`docs/media/app.webp` | 《Tears of Steel》原片 0:18–0:50 中的一段，剪短、重新编码，加上本项目生成的中文字幕和中文配音 | 原片 [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/)，© Blender Foundation \| [mango.blender.org](https://mango.blender.org/)；这几个演示文件同样以 CC BY 3.0 提供 |
+
+配音克隆了片中演员的音色，只用来演示；画面左上角标着「AI 翻译配音」。

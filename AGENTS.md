@@ -20,7 +20,7 @@ live-dub/
 ├── configs/        内置场景；local/ 为不入库的个人预设
 ├── scripts/        fetch.py 下载工具与模型；linux/ 安装 Linux / WSL 环境
 ├── bench/          实验、测试、分析；configs/ 测试源
-└── docs/           用户文档；dev/ 调研与实测记录
+└── docs/           用户文档；dev/ 调研与实测记录；media/ README 演示素材
 ```
 
 ## 项目架构图
@@ -36,9 +36,9 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 - README.md：使用、安装与运行入口；LICENSE、THIRD_PARTY.md、licenses/：自有与第三方许可。
 - docs/原理.md：时间锚点和处理链；docs/配置.md：设置项；docs/接口.md：后端接口。
 - docs/安装.md：完整环境安装；app/README.md：前端构建、假后端、页面与代码。
-- docs/2026-10/大众用户改进.md：普通用户改进状态与验证边界。
+- docs/2026-10/大众用户改进.md：安装、原生识别与观看体验改进状态和验证边界。
+- docs/2026-10/README演示.md：首屏演示的素材、生成命令和实跑结果。
 - bench/README.md：实验和分析脚本；docs/dev/README.md：实测与调研导航。
-- docs/2026-10/大众用户改进.md：安装、原生识别与观看体验改进状态。
 
 ## 项目约束
 - 画面不等处理：赶不上播出就去配音、退回原文、最终不叠加；下一句照常。
@@ -64,3 +64,4 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 - 10-10 07:36：点播提前处理并支持跳转优先；OBS 沿用实时处理；已生成字幕和时间范围保留。
 - 10-10 07:36：历史支持回放、续看、SRT 导出；清理缓存保留字幕，删除整场需界面确认。
 - 10-10 07:56：0.2.0 预览版已发布，独立 Windows 构建通过；干净机安装与用户试用仍待验证。
+- 10-10 09:15：README 首屏演示用 Tears of Steel（CC BY 3.0）片段，AV1 视频、AVIF 动图和截图放 docs/media/。

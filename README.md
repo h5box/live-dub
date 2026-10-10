@@ -21,6 +21,13 @@
 [配置说明](docs/配置.md) ·
 [参与开发](AGENTS.md)
 
+<br>
+
+<a href="docs/media/demo.mp4"><img src="docs/media/demo.avif" width="760" alt="演示：英语对白的画面上叠着中英字幕，中文配音用原说话人的音色"></a>
+
+<sub>▶ 点图看带声音的完整片段（27 秒，AV1）。素材：<a href="https://mango.blender.org/">Tears of Steel</a>（CC BY 3.0）© Blender Foundation | mango.blender.org。<br>
+翻译 DeepSeek，配音 IndexTTS-2.5；字幕和配音都是程序直接输出，没有人工修改。做法见 <a href="docs/2026-10/README演示.md">README演示.md</a>。</sub>
+
 </div>
 
 ---
@@ -44,6 +51,9 @@ live-dub 是一款个人观看用的翻译工具：把英语直播或视频翻�
 | 📺 | **播放** | 字幕叠加在画面上，可切换中英 / 仅中文 / 仅原文 / 关闭；配音时自动压低原声；支持暂停、回看和点击字幕跳转 |
 | 🗂️ | **历史** | 回放保留的视频、从上次位置继续，导出中文、原文或双语 SRT |
 | 📡 | **OBS 输出** | 可选，将带字幕和配音的画面输出到本机 OBS |
+
+<p align="center"><img src="docs/media/app.webp" width="860" alt="观看页：左边是叠着中英字幕的画面，右边逐句列出原文、译文和配音状态"></p>
+<p align="center"><sub>观看页：右边逐句列出原文、译文和配音状态，点一句就从那句开始播。</sub></p>
 
 ## 使用须知
 
