@@ -54,8 +54,12 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://tauri.localhost", "htt
 
 
 def snapshot() -> dict:
+    assert session is not None
     # t is the moment of sending (services.status carries the time of its last poll, seconds older under load)
-    st = {**services.status, "session": session.info, "health": health, "t": time.time()}
+    # health is polled every few seconds: right after a new start it still describes the previous run, whose
+    # anchor would send the player to that run's schedule (the end of a file that was just opened)
+    current = health if health.get("name") == (session.info or {}).get("name") else {}
+    st = {**services.status, "session": session.info, "health": current, "t": time.time()}
     if session.active and services.status:   # during a session only what it uses matters (dubbing joins at its start)
         st["warnings"] = gpu_warnings(services.status.get("gpu", {}), services.status.get("services", {}),
                                       session.info.get("mt_model"), want_dub=False)

@@ -21,7 +21,8 @@ const props = withDefaults(defineProps<{
   anchor: Anchor | null;
   running: boolean;          // the session is running: follow the default schedule
   dubOn: boolean;            // the session makes dubs
-  isLive?: boolean;
+  isLive?: boolean;          // paced in real time (a live source, or a session with OBS output): follow the anchor;
+                             // otherwise processed ahead, and seeking past the processed part asks for it first
   processed?: [number, number][];
 }>(), { isLive: true });
 
@@ -133,6 +134,9 @@ function toggle() {
   else { v.pause(); player.follow = false; }
 }
 /** show PT `pt`; any seek by the user stops following the default schedule */
+/** pt has its subtitles: inside a processed range, give or take the half second that frame times and the
+ *  processor's range ends differ by (the first frame starts a few microseconds before the first range) */
+const ready = (pt: number) => (props.processed ?? []).some(([s, e]) => s - 0.5 <= pt && pt <= e + 0.5);
 function seekPT(pt: number, follow = false) {
   const v = video.value;
   if (!v || st.first === null || st.edge === null) return;
@@ -143,7 +147,7 @@ function seekPT(pt: number, follow = false) {
   st.started = true;
   mixer.stopAll();
   v.currentTime = t;
-  if (!follow && !props.isLive && props.running && !(props.processed ?? []).some(([s, e]) => s <= pt && pt <= e)) {
+  if (!follow && !props.isLive && props.running && !ready(pt)) {
     api.prioritize(pt).catch((e) => { live.error = (e as Error).message; });
   }
 }
@@ -297,7 +301,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
         <p v-if="prefs.subs !== 'en' && line.zh" class="zh"><template v-for="(r, i) in zhRows" :key="i"><br v-if="i" />{{ r }}</template></p>
         <p v-if="prefs.subs !== 'zh' && line.en" class="en">{{ line.en }}</p>
       </div>
-      <span v-if="props.running && !props.isLive && st.pt !== null && !(props.processed ?? []).some(([s, e]) => s <= st.pt! && st.pt! <= e)" class="preparing">正在准备当前片段的字幕</span>
+      <span v-if="props.running && !props.isLive && st.pt !== null && !ready(st.pt)" class="preparing">正在准备当前片段的字幕</span>
       <div v-if="veil" class="veil" :class="veil.kind">
         <template v-if="veil.kind === 'idle'"><slot name="idle" /></template>
         <template v-else-if="veil.kind === 'count'">

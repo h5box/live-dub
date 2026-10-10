@@ -27,6 +27,9 @@ const running = computed(() => s.value?.state === "running");
 /** the player waits for the picture (and later follows the schedule) from the moment the session starts */
 const underway = computed(() => ["starting", "running"].includes(s.value?.state ?? ""));
 const anchor = computed(() => live.status?.health?.anchor ?? null);
+/** paced in real time, so the player follows the schedule: a live stream (a link counts as live until ingest
+ *  has looked), or any source with OBS output; otherwise it is processed ahead */
+const realtime = computed(() => !!s.value?.obs || (s.value?.is_live ?? s.value?.kind !== "file"));
 const playout = computed(() => live.status?.health?.playout ?? {});
 const tab = ref<"subs" | "state">(load<string>("liveTab", "subs") === "state" ? "state" : "subs");
 const diagnostics = ref(false);
@@ -114,7 +117,7 @@ onUnmounted(() => unlisten?.());
     <div class="body">
       <div class="main">
         <Player :media="media" :session="s?.name ?? null" :rows="rows" :anchor="anchor" :running="underway" :dub-on="dubOn"
-                :is-live="s?.is_live !== false" :processed="live.status?.health?.progress?.ranges">
+                :is-live="realtime" :processed="live.status?.health?.progress?.ranges">
           <template #idle>
             <div class="idlehint">
               <template v-if="s?.state === 'starting'">

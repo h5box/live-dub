@@ -482,6 +482,12 @@ class Session:
             raise RuntimeError("正在读取视频，请稍后重试")
         if source["is_live"] or not cfg.get("ahead"):
             raise RuntimeError("直播和 OBS 输出只支持回看已处理的内容")
+        try:
+            ranges = json.loads((self.dir / "progress.json").read_text(encoding="utf-8"))["ranges"]
+        except (OSError, ValueError, KeyError):
+            ranges = []
+        if any(s - 0.5 <= pt <= e + 0.5 for s, e in ranges):
+            return   # already processed: the processor would start over there and redo it all
         from ..ingest import listed
         rows = [r for r in listed(self.dir / "buf") if (self.dir / "buf" / r[0]).is_file()]
         if not rows or pt < 0 or pt > float(rows[-1][2]):
@@ -542,6 +548,6 @@ class Session:
                 pass
         if "is_live" in source:
             self.info["is_live"] = source["is_live"]
-        return {"running": running, "mem_mb": mem, "anchor": read_anchor(self.dir), "progress": progress,
-                "playout": playout_line(self.dir) if self.info.get("obs", True) else {}}
+        return {"name": self.info.get("name"), "running": running, "mem_mb": mem, "anchor": read_anchor(self.dir),
+                "progress": progress, "playout": playout_line(self.dir) if self.info.get("obs", True) else {}}
 
