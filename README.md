@@ -4,9 +4,9 @@
 
 # live-dub
 
-**把英语直播或视频翻译给自己看**
+**英语直播与视频的中文字幕和原音色中文配音**
 
-中文字幕 · 可选原音色中文配音 · 按源时间戳与画面对齐
+字幕、配音与画面逐句对齐 · 直播与点播均可使用
 
 [![Release](https://img.shields.io/github/v/release/h5box/live-dub?include_prereleases&label=release&color=246FD1)](https://github.com/h5box/live-dub/releases)
 [![License](https://img.shields.io/badge/license-MIT-246FD1)](LICENSE)
@@ -17,7 +17,7 @@
 
 [下载安装包](https://github.com/h5box/live-dub/releases) ·
 [安装文档](docs/安装.md) ·
-[设计原理](docs/原理.md) ·
+[工作原理](docs/原理.md) ·
 [配置说明](docs/配置.md) ·
 [参与开发](AGENTS.md)
 
@@ -25,84 +25,85 @@
 
 ---
 
-贴一个直播或视频链接（YouTube、Twitch、m3u8 等），或者选一个本地视频，点「开始」：
+live-dub 是一款个人观看用的翻译工具：把英语直播或视频翻译成中文，在画面上叠加中文字幕，
+也可以用原说话人的音色念出中文配音。支持 YouTube、Twitch、m3u8 等链接和本地视频。
 
-- **直播**：画面延时 D 秒播放（默认 30 秒），这段时间里先识别、翻译和配音。
-- **点播**：提前处理，首段字幕准备好后播放；拖到未处理位置会优先处理那里。
+- **直播**：画面延后播放（默认 30 秒），利用这段时间完成识别、翻译和配音，让每句字幕和配音都对准原话。
+- **点播**：先处理再播放，首段字幕就绪即可开始观看；拖到尚未处理的位置时，会优先处理那一段。
 
 > [!NOTE]
-> 目前源语言只支持英语，译成简体中文。
+> 目前仅支持英语译为简体中文。
 
-## ✨ 功能
+## 功能
 
 | | 环节 | 说明 |
 | :---: | --- | --- |
-| 🎙️ | **识别** | NVIDIA Parakeet（英文，带词级时间戳），在 CPU 上跑；TitaNet 声纹区分说话人 |
-| 🌐 | **翻译** | 本地 Index-Translate-9B（llama.cpp），或者线上的 DeepSeek / 任何 OpenAI 兼容接口 |
-| 🗣️ | **配音** | IndexTTS-2.5，用每个说话人自己的原声当参考，按原句的时长合成 |
-| 📺 | **播放** | 程序里直接看，字幕叠在画面上（中英 / 只中文 / 只原文 / 关），配音时原声自动压低；可以暂停、回看、点一句字幕跳过去 |
-| 🗂️ | **历史** | 回放保留的视频、继续上次位置、导出中文／原文／双语 SRT |
-| 📡 | **OBS** | 可选「输出到 OBS」：把带字幕和配音的画面推到本机 OBS |
+| 🎙️ | **识别** | NVIDIA Parakeet 英文识别，带词级时间戳，CPU 即可运行；TitaNet 声纹区分说话人 |
+| 🌐 | **翻译** | 本地 Index-Translate-9B（llama.cpp），或 DeepSeek 等任意 OpenAI 兼容接口 |
+| 🗣️ | **配音** | IndexTTS-2.5 以每位说话人的原声为参考，按原句时长合成中文 |
+| 📺 | **播放** | 字幕叠加在画面上，可切换中英 / 仅中文 / 仅原文 / 关闭；配音时自动压低原声；支持暂停、回看和点击字幕跳转 |
+| 🗂️ | **历史** | 回放保留的视频、从上次位置继续，导出中文、原文或双语 SRT |
+| 📡 | **OBS 输出** | 可选，将带字幕和配音的画面输出到本机 OBS |
 
-## ⚠️ 使用须知
+## 使用须知
 
 > [!IMPORTANT]
-> - 这是给自己看外语内容的工具。请只用于你有权观看的内容，遵守内容的版权和平台的服务条款；不要用它录制、转载或二次分发别人的内容。
-> - 「输出到 OBS」只是把画面交给你本机的 OBS。推不推流、推到哪里由你自己决定，相关的版权和法律责任由你自己承担。
-> - 配音会克隆原说话人的音色，只是为了让译文听起来像原话。不要用它冒充他人，或者做误导别人的内容。
-> - 用到的模型各有许可，有的只许非商业使用（配音链路里的 MaskGCT 语义编解码器是 CC BY-NC 4.0），见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+> - 本工具用于个人观看外语内容。请仅处理你有权观看的内容，遵守版权和平台服务条款，不要录制、转载或二次分发他人的内容。
+> - 「输出到 OBS」只把画面交给本机的 OBS。是否推流、推往何处由你决定，相应的版权和法律责任由你自行承担。
+> - 配音会克隆原说话人的音色，目的只是让译文听起来像原话。请勿用于冒充他人或制作误导性内容。
+> - 所用模型各有许可，部分仅限非商业使用（例如配音链路中的 MaskGCT 语义编解码器为 CC BY-NC 4.0），详见 [THIRD_PARTY.md](THIRD_PARTY.md)。
 
-## 🎯 怎么做到和嘴对上
+## 工作原理
 
-常见的同传工具追求低延迟：听完一句、识别、翻译、马上上屏马上念，所以字幕和配音总比嘴晚好几秒，而且每句晚得不一样。
+常见的同声传译工具追求低延迟：听完一句就识别、翻译、上屏、朗读，因此字幕和配音总比说话人晚几秒，而且每句晚的时间都不一样。
 
-这里反过来：**整路画面固定晚 D 秒播放**，所有环节都按源视频自己的时间戳记账。
+live-dub 反其道而行：**让整路画面固定延后 D 秒播放**，所有环节都以源视频自身的时间戳计时。
 
 ```mermaid
 flowchart LR
     SRC["源视频 / 直播"] --> CUT["切块、打时间锚点"]
     CUT --> ASR["识别"] --> SEG["断句、说话人"] --> MT["翻译"] --> TTS["配音"]
     TTS --> PLAY["播放器：按源时间戳<br/>叠字幕、排配音"]
-    CUT -.->|画面固定延时 D 秒| PLAY
+    CUT -.->|画面固定延后 D 秒| PLAY
 ```
 
-一句话在源里从 t0 说到 t1，只要它的识别、翻译、配音在 t0 + D 之前做完，就能在画面播到 t0 的那一刻上字幕、开始念配音。
+一句话在源视频中从 t0 说到 t1，只要识别、翻译和配音在 t0 + D 之前完成，画面播到 t0 时就能准时显示字幕、开始配音。
 
-| | 常见同传工具 | live-dub |
+| | 低延迟同传 | live-dub |
 | --- | --- | --- |
-| 思路 | 尽量低延迟，做完马上上屏 | 画面固定晚 D 秒，换来逐句对齐 |
-| 字幕和配音 | 总比嘴晚几秒，每句晚得不一样 | 在原句开口的那一刻出现 |
-| 模型 | 必须流式 | 不用流式：按整句、带上下文、按原句时长来做 |
-| 赶不上时 | — | 这一句降级：去掉配音，再不行只留原文；**画面从不等任何环节** |
+| 延迟 | 尽量小，但每句不同 | 固定 D 秒（直播默认 30 秒） |
+| 字幕和配音 | 比原话晚几秒出现 | 与原话同时出现 |
+| 处理方式 | 必须流式处理 | 整句处理，可利用上下文，按原句时长配音 |
 
+来不及处理的句子会逐级降级：先去掉配音，再退回原文字幕，仍来不及就不叠加，下一句照常处理。**画面从不等待任何环节。**
 详细设计见 [docs/原理.md](docs/原理.md)。
 
-## 💻 需要什么
+## 系统要求
 
-| 想要的效果 | 硬件 | 磁盘 |
+| 使用方式 | 硬件 | 磁盘 |
 | --- | --- | --- |
-| 中文字幕（线上翻译） | 4 核以上 CPU、16 GB 内存 | 原生识别模型约 0.8 GB；NeMo 识别环境约 6 GB |
+| 中文字幕（线上翻译） | 4 核以上 CPU，16 GB 内存 | 原生识别模型约 0.8 GB；NeMo 识别环境约 6 GB |
 | + 本地翻译 | NVIDIA 显卡，约 5 GB 显存 | 翻译模型约 5.5 GB |
 | + 中文配音 | NVIDIA 显卡，约 6.5 GB 显存 | 配音环境约 20 GB |
 
-- 识别：Windows 默认原生 ONNX，无需 WSL；Linux 默认 NeMo。
-- 本地翻译和配音一起约需 12 GB 显存，还须给系统与播放器留空间。
-- 在 Windows 11 + WSL 2（Ubuntu 22.04）+ RTX 5060 Ti 16 GB 上开发和实测；Linux 上同一套代码可以跑，但测得少。
+- Windows 默认使用原生 ONNX 识别，无需 WSL；Linux 默认使用 NeMo。
+- 本地翻译与配音同时开启约需 12 GB 显存，另需为系统和播放器预留余量。
+- 开发与实测环境为 Windows 11 + WSL 2（Ubuntu 22.04）+ RTX 5060 Ti 16 GB。Linux 可运行同一套代码，但测试较少。
 
-## 📦 安装
+## 安装
 
 ### Windows 安装包（推荐）
 
-1. 从 [GitHub Releases](https://github.com/h5box/live-dub/releases) 下载安装程序并安装。
-2. 打开「设置向导」：下载字幕组件 → 填写并测试翻译接口 → 播放内置英语测试片。
+1. 从 [GitHub Releases](https://github.com/h5box/live-dub/releases) 下载并运行安装程序。
+2. 打开「设置向导」，依次下载字幕组件、填写并测试翻译接口，再播放内置的英语测试片确认效果。
 
 > [!TIP]
-> 字幕模式无需 Python、Node.js、WSL 或独立显卡；线上翻译按接口供应商价格计费。模型可选择存放目录。
-> 原音色配音是可选组件，仍需 NVIDIA 显卡与 WSL 2。
+> 仅使用字幕时，不需要 Python、Node.js、WSL 或独立显卡；线上翻译按接口服务商的价格计费，模型存放目录可自选。
+> 原音色配音为可选组件，需要 NVIDIA 显卡和 WSL 2。
 
 ### 从源码运行
 
-下面是最短的路径，每一步的细节、常见问题见 [docs/安装.md](docs/安装.md)。装完随时可以运行环境检查，它会告诉你还缺什么、怎么补：
+以下是最简步骤，详细说明和常见问题见 [docs/安装.md](docs/安装.md)。安装过程中可随时运行环境检查，它会列出缺少的组件和补装方法：
 
 ```
 uv run python -m livedub.doctor
@@ -111,7 +112,7 @@ uv run python -m livedub.doctor
 <details>
 <summary><b>Windows</b></summary>
 
-1. 装好基础工具（PowerShell 里）：
+1. 安装基础工具（在 PowerShell 中执行）：
 
    ```powershell
    winget install Git.Git
@@ -121,14 +122,14 @@ uv run python -m livedub.doctor
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
-   装完重开一个 PowerShell 窗口，新装的命令才找得到。
+   安装完成后重新打开 PowerShell，新命令才能生效。
 
-   Deno 是给 yt-dlp 解 YouTube 的播放校验用的（装 Node.js 也行）；Node.js 用来构建界面。
+   Deno 供 yt-dlp 通过 YouTube 的播放校验（也可用 Node.js 代替）；Node.js 用于构建界面。
 
-2. 仅配音或 NeMo 识别需要 WSL 2：在管理员 PowerShell 运行 `wsl --install`，重启后建 Ubuntu 用户。
-   NVIDIA 驱动只在 Windows 里装，WSL 里不用另装。
+2. 仅配音和 NeMo 识别需要 WSL 2：以管理员身份在 PowerShell 中运行 `wsl --install`，重启后创建 Ubuntu 用户。
+   NVIDIA 驱动只需安装在 Windows 中，WSL 内无需另装。
 
-3. 下载代码，装 Python 依赖：
+3. 克隆代码并安装 Python 依赖：
 
    ```powershell
    git clone https://github.com/h5box/live-dub.git
@@ -136,16 +137,16 @@ uv run python -m livedub.doctor
    uv sync
    ```
 
-4. Windows 默认使用原生 ONNX 识别：构建界面并启动后，在「设置向导」下载模型（约 0.8 GB）。
-   如需 NeMo 识别热词增强，先将 `settings.json` 的 `asr.backend` 设为 `nemo`，再安装：
+4. Windows 默认使用原生 ONNX 识别：构建并启动界面后，在「设置向导」中下载模型（约 0.8 GB）。
+   如需 NeMo 的识别热词增强，先将 `settings.json` 中的 `asr.backend` 设为 `nemo`，再安装：
 
    ```powershell
    wsl -e bash scripts/linux/setup_asr.sh
    ```
 
-5. 翻译，二选一：
-   - 本地：`uv run python scripts/fetch.py all`（llama.cpp 的服务端加 Index-Translate-9B，约 5.5 GB）；
-   - 线上：先跳过，打开程序后在「环境」页填 DeepSeek 或其他 OpenAI 兼容接口的 API key。
+5. 翻译（二选一）：
+   - 本地：`uv run python scripts/fetch.py all`，下载 llama.cpp 服务端和 Index-Translate-9B，约 5.5 GB；
+   - 线上：暂时跳过，启动程序后在「环境」页填写 DeepSeek 或其他 OpenAI 兼容接口的 API key。
 
 6. 中文配音（可选，约 20 GB）：`wsl -e bash scripts/linux/setup_dub.sh`
 
@@ -157,24 +158,24 @@ uv run python -m livedub.doctor
 <summary><b>Linux</b></summary>
 
 ```bash
-sudo apt install git ffmpeg curl            # 再装 Deno 或 Node.js（看 YouTube 用）和 Node.js（构建界面）
+sudo apt install git ffmpeg curl            # 另需 Node.js（构建界面）；观看 YouTube 还需 Deno 或 Node.js
 curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/h5box/live-dub.git && cd live-dub
 uv sync
 bash scripts/linux/setup_asr.sh             # 识别（必需）
-uv run python scripts/fetch.py all          # 本地翻译（或者用线上翻译）
-bash scripts/linux/setup_dub.sh             # 中文配音（可选，要 NVIDIA 显卡）
+uv run python scripts/fetch.py all          # 本地翻译（也可改用线上翻译）
+bash scripts/linux/setup_dub.sh             # 中文配音（可选，需要 NVIDIA 显卡）
 ```
 
 </details>
 
 > [!TIP]
-> **国内网络**：Hugging Face 慢就设 `HF_ENDPOINT=https://hf-mirror.com`，PyPI 慢就设 `UV_DEFAULT_INDEX` 指向国内镜像，
-> GitHub 慢就给 `scripts/fetch.py` 加 `--github-mirror`，见 [docs/安装.md](docs/安装.md)。
+> **国内网络**：Hugging Face 下载慢可设置 `HF_ENDPOINT=https://hf-mirror.com`；PyPI 慢可将 `UV_DEFAULT_INDEX` 指向国内镜像；
+> GitHub 慢可为 `scripts/fetch.py` 加上 `--github-mirror`。详见 [docs/安装.md](docs/安装.md)。
 
-## 🚀 运行
+## 运行
 
-先构建界面（一次就行，要 Node.js）：
+首次运行前先构建界面（需要 Node.js，只需一次）：
 
 ```
 cd app
@@ -183,56 +184,56 @@ npx pnpm build
 cd ..
 ```
 
-然后二选一：
+然后任选一种方式启动：
 
 | 方式 | 启动 | 说明 |
 | --- | --- | --- |
-| 🌐 **浏览器** | `uv run python -m livedub.server --open` | 打开 http://127.0.0.1:8090 ；本地视频要粘贴文件路径 |
-| 🖥️ **桌面程序** | 在 `app/` 里运行 `npx pnpm tauri build --no-bundle` | 得到 `app/src-tauri/target/release/live-dub(.exe)`，双击即可，后端会自己起来；可以选择、拖入本地视频 |
+| **浏览器** | `uv run python -m livedub.server --open` | 自动打开 http://127.0.0.1:8090 ；本地视频需粘贴文件路径 |
+| **桌面程序** | 在 `app/` 中运行 `npx pnpm tauri build --no-bundle` | 生成 `app/src-tauri/target/release/live-dub(.exe)`，双击即可，后端会自动启动；支持选择或拖入本地视频 |
 
-桌面程序需要另外装好 [Tauri 的构建环境](https://tauri.app/start/prerequisites/)（Rust；Windows 还要 MSVC）。
+构建桌面程序需另外准备 [Tauri 构建环境](https://tauri.app/start/prerequisites/)（Rust；Windows 还需 MSVC）。
 
-### 用法
+### 使用方法
 
-1. 在「设置向导」装好字幕组件并测试翻译接口。在「观看」页贴链接或选视频，点「开始」，默认仅字幕。
-2. 场景、翻译模型、直播延时、OBS 输出位于「高级选项」。勾选中文配音会自动启动已安装的配音服务。
-3. 直播等待 D 秒后播放；点播在首段字幕就绪后播放，进度条绿色区域表示已处理部分。
-   可暂停、拖动、点字幕跳转；直播用「回到实时」恢复默认位置。
-4. 「历史」页可回放保留的视频、继续上次位置、导出中文／原文／双语 SRT，查看占用并清理缓存或删除整场记录。
-   清理缓存保留字幕和统计；删除记录会移除这一场的全部文件，两者都需要确认。
+1. 在「设置向导」中安装字幕组件并测试翻译接口。然后在「观看」页粘贴链接或选择视频，点击「开始」，默认只生成字幕。
+2. 场景、翻译模型、直播延时和 OBS 输出在「高级选项」中设置。勾选中文配音会自动启动已安装的配音服务。
+3. 直播在延时 D 秒后开始播放；点播在首段字幕就绪后播放，进度条上的绿色区域表示已处理的部分。
+   播放时可暂停、拖动进度、点击字幕跳转；直播可点击「回到实时」恢复默认位置。
+4. 「历史」页可回放保留的视频、从上次位置继续、导出中文／原文／双语 SRT，也可查看占用空间、清理缓存或删除整场记录。
+   清理缓存会保留字幕和统计；删除记录会移除该场的全部文件。两项操作都需要确认。
 
-快捷键：<kbd>Space</kbd> 暂停 · <kbd>←</kbd> <kbd>→</kbd> 跳 5 秒 · <kbd>F</kbd> 全屏
+快捷键：<kbd>Space</kbd> 暂停 · <kbd>←</kbd> <kbd>→</kbd> 快退 / 快进 5 秒 · <kbd>F</kbd> 全屏
 
-## ⚙️ 设置
+## 设置
 
-不建设置文件也能用：默认值就是安装脚本放东西的位置。要改路径、端口、默认翻译模型、YouTube cookies 等，
-照 [settings.example.json](settings.example.json) 在项目目录建一个 `settings.json`，只写要改的项，说明见 [docs/配置.md](docs/配置.md)。
-自己的场景（术语表、热词）放在 `configs/local/`。
+无需设置文件即可使用，默认路径与安装脚本一致。如需修改路径、端口、默认翻译模型、YouTube cookies 等，
+请参照 [settings.example.json](settings.example.json) 在项目目录新建 `settings.json`，只写需要修改的项，说明见 [docs/配置.md](docs/配置.md)。
+自定义场景（术语表、热词）放在 `configs/local/`。
 
-## 📚 文档
+## 文档
 
 | 文档 | 内容 |
 | --- | --- |
 | [docs/安装.md](docs/安装.md) | 安装细节和常见问题 |
-| [docs/配置.md](docs/配置.md) | `settings.json`、场景预设、线上翻译的 key |
-| [docs/原理.md](docs/原理.md) | 设计与时间轴（固定延时、锚点、降级） |
-| [docs/接口.md](docs/接口.md) | 后端 API、识别和配音服务的 HTTP 接口 |
-| [AGENTS.md](AGENTS.md) | 参与开发（代码结构、怎么在没有显卡的机器上改界面） |
+| [docs/配置.md](docs/配置.md) | `settings.json`、场景预设、线上翻译的 API key |
+| [docs/原理.md](docs/原理.md) | 设计与时间轴：固定延时、时间锚点、降级策略 |
+| [docs/接口.md](docs/接口.md) | 后端 API，以及识别和配音服务的 HTTP 接口 |
+| [AGENTS.md](AGENTS.md) | 参与开发：代码结构，以及如何在没有显卡的机器上修改界面 |
 | [docs/dev/](docs/dev/) | 开发过程中的选型调研和实测记录 |
 
-## 🗺️ 路线图
+## 路线图
 
-- [ ] 干净 Windows 机器安装验证、非技术用户试用和下载成功率改进
-- [ ] 在界面里编辑场景的术语表和识别热词
-- [ ] 更多源语言
+- [ ] 在干净的 Windows 机器上验证安装，邀请非技术用户试用，提高组件下载成功率
+- [ ] 在界面中编辑场景的术语表和识别热词
+- [ ] 支持更多源语言
 
-## 📄 许可证
+## 许可证
 
-本项目自有代码采用 [MIT 许可证](LICENSE)。`dubsvc/engine.py` 等第三方衍生文件遵循各自原许可，
-不包含在 MIT 授权范围内；完整说明及许可文本见 [THIRD_PARTY.md](THIRD_PARTY.md) 和 [licenses/](licenses/)。
-模型权重不随仓库分发，其使用限制不会因本项目采用 MIT 而改变。
+本项目自有代码采用 [MIT 许可证](LICENSE)。`dubsvc/engine.py` 等第三方衍生文件沿用各自的原许可，
+不在 MIT 授权范围内；完整说明和许可文本见 [THIRD_PARTY.md](THIRD_PARTY.md) 与 [licenses/](licenses/)。
+模型权重不随仓库分发，其使用限制也不因本项目采用 MIT 而改变。
 
-## 🙏 致谢
+## 致谢
 
 | 环节 | 项目 |
 | --- | --- |
