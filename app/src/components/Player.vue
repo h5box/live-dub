@@ -133,10 +133,10 @@ function toggle() {
   if (v.paused) { if (st.ended) seekPT(st.first ?? 0); play(); }
   else { v.pause(); player.follow = false; }
 }
-/** show PT `pt`; any seek by the user stops following the default schedule */
 /** pt has its subtitles: inside a processed range, give or take the half second that frame times and the
  *  processor's range ends differ by (the first frame starts a few microseconds before the first range) */
 const ready = (pt: number) => (props.processed ?? []).some(([s, e]) => s - 0.5 <= pt && pt <= e + 0.5);
+/** show PT `pt`; any seek by the user stops following the default schedule */
 function seekPT(pt: number, follow = false) {
   const v = video.value;
   if (!v || st.first === null || st.edge === null) return;
@@ -151,7 +151,32 @@ function seekPT(pt: number, follow = false) {
     api.prioritize(pt).catch((e) => { live.error = (e as Error).message; });
   }
 }
-const skip = (d: number) => { if (st.pt !== null) seekPT(st.pt + d); };
+/** where the picture is now; st.pt lags a frame behind a seek, so keys pressed in quick succession would all
+ *  start from the same place */
+const nowPT = () => (video.value ? ptAt(video.value.currentTime) : null);
+const skip = (d: number) => { const pt = nowPT(); if (pt !== null) seekPT(pt + d); };
+/** play from the start of the next line, or of the previous one; like a music player's previous track, after the
+ *  first 1.5 s of a line it starts that line over (to hear it again) */
+function stepLine(dir: -1 | 1) {
+  const pt = nowPT(), r = props.rows;
+  if (pt === null || !r.length) return;
+  // the line we are in or after; 0.3 s of slack because a seek to a line lands on a frame a little before its start
+  let i = -1;
+  while (i + 1 < r.length && r[i + 1].pt0 <= pt + 0.3) i++;
+  const to = dir > 0 ? r[i + 1] : i < 0 ? undefined : pt - r[i].pt0 > 1.5 ? r[i] : r[Math.max(0, i - 1)];
+  if (to) handleSeek(to.pt0);
+}
+const SUBS = { zhen: "中英", zh: "中文", en: "原文", off: "关字幕" } as const;
+const subsLabel = ref<string | null>(null);
+let subsTimer = 0;
+/** C: the next subtitle mode, named on the picture for a moment (the bar is hidden in full screen) */
+function cycleSubs() {
+  const modes = Object.keys(SUBS) as (keyof typeof SUBS)[];
+  prefs.subs = modes[(modes.indexOf(prefs.subs) + 1) % modes.length];
+  subsLabel.value = `字幕：${SUBS[prefs.subs]}`;
+  clearTimeout(subsTimer);
+  subsTimer = window.setTimeout(() => (subsLabel.value = null), 1200);
+}
 function backToLive() { player.follow = true; play(); }
 function fullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();
@@ -165,6 +190,9 @@ function onKey(e: KeyboardEvent) {
   if (e.key === " ") { e.preventDefault(); toggle(); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); skip(-5); }
   else if (e.key === "ArrowRight") { e.preventDefault(); skip(5); }
+  else if (e.key === "a" || e.key === "A") stepLine(-1);
+  else if (e.key === "d" || e.key === "D") stepLine(1);
+  else if (e.key === "c" || e.key === "C") cycleSubs();
   else if (e.key === "f" || e.key === "F") fullscreen();
 }
 
@@ -302,6 +330,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
         <p v-if="prefs.subs !== 'zh' && line.en" class="en">{{ line.en }}</p>
       </div>
       <span v-if="props.running && !props.isLive && st.pt !== null && !ready(st.pt)" class="preparing">正在准备当前片段的字幕</span>
+      <span v-if="subsLabel" class="osd">{{ subsLabel }}</span>
       <div v-if="veil" class="veil" :class="veil.kind">
         <template v-if="veil.kind === 'idle'"><slot name="idle" /></template>
         <template v-else-if="veil.kind === 'count'">
@@ -320,8 +349,8 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
     <div class="bar" :class="{ off: !props.media || st.first === null }">
       <button class="btn ghost icon" :title="st.playing ? '暂停（空格）' : '播放（空格）'" @click="toggle">
         <Icon :name="st.playing ? 'pause' : 'play'" :size="16" /></button>
-      <button class="btn ghost icon" title="后退 10 秒（←）" @click="skip(-10)"><Icon name="back10" :size="17" /></button>
-      <button class="btn ghost icon" title="前进 10 秒（→）" @click="skip(10)"><Icon name="fwd10" :size="17" /></button>
+      <button class="btn ghost icon" title="后退 10 秒" @click="skip(-10)"><Icon name="back10" :size="17" /></button>
+      <button class="btn ghost icon" title="前进 10 秒" @click="skip(10)"><Icon name="fwd10" :size="17" /></button>
       <span class="time num">{{ st.pt !== null ? clock(st.pt - p0) : "—" }}</span>
       <div class="scrub" @pointerdown="scrub" @pointermove="hoverPT = ptFromEvent($event)" @pointerleave="hoverPT = null">
         <div class="track"><i v-for="([s, e], i) in props.processed ?? []" :key="i" class="prepared" :style="{ left: pos(s) + '%', width: Math.max(0, pos(e) - pos(s)) + '%' }" /><i class="done" :style="{ width: pos(st.pt) + '%' }" /></div>
@@ -333,8 +362,8 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
               :title="player.follow ? '跟着默认延时播放' : '回到默认延时的位置'" @click="backToLive">
         <i />{{ player.follow && (behind ?? 0) < 3 ? `直播 · 延时 ${props.anchor?.delay ?? 30} 秒` : "回到直播位置" }}
       </button>
-      <select v-model="prefs.subs" class="select subsel" title="字幕">
-        <option value="zhen">中英</option><option value="zh">中文</option><option value="en">原文</option><option value="off">关字幕</option>
+      <select v-model="prefs.subs" class="select subsel" title="字幕（C 切换；A / D 上一句 / 下一句）">
+        <option v-for="(label, k) in SUBS" :key="k" :value="k">{{ label }}</option>
       </select>
       <div class="volwrap">
         <button class="btn ghost icon" title="音量" @click="st.vol = !st.vol"><Icon name="voice" :size="17" /></button>
@@ -350,6 +379,8 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
 </template>
 
 <style scoped>
+.osd { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 6px 12px; background: #000a;
+  border-radius: 6px; color: #fff; font-size: 13px; pointer-events: none; }
 .preparing { position: absolute; top: 12px; left: 12px; padding: 6px 10px; background: #000a; border-radius: 6px; color: #fff; font-size: 12px; }
 .track .prepared { position: absolute; height: 100%; background: var(--accent); opacity: 0.35; }
 .player { display: flex; flex-direction: column; min-width: 0; background: #000; border-radius: var(--radius); overflow: hidden;

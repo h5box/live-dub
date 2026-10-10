@@ -33,7 +33,7 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 ```
 
 ## 项目文档
-- README.md：使用、安装与运行入口；LICENSE、THIRD_PARTY.md、licenses/：自有与第三方许可。
+- README.md：使用、安装与运行入口；CHANGELOG.md：面向用户的更新记录；LICENSE、THIRD_PARTY.md、licenses/：自有与第三方许可。
 - docs/原理.md：时间锚点和处理链；docs/配置.md：设置项；docs/接口.md：后端接口。
 - docs/安装.md：完整环境安装；app/README.md：前端构建、假后端、页面与代码。
 - docs/2026-10/大众用户改进.md：安装、原生识别与观看体验改进状态和验证边界。
