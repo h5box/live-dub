@@ -209,6 +209,13 @@ class Speakers:
         self.cent.append(emb); self.n.append(1); self.last = len(self.cent) - 1
         return self.last
 
+    def nearest(self, k, usable):
+        """The other speaker whose voice is most like speaker k's, among those usable(j) accepts, or None."""
+        if k is None or k >= len(self.cent):
+            return None
+        sims = [(float(self.cent[k] @ c), j) for j, c in enumerate(self.cent) if j != k and usable(j)]
+        return max(sims)[1] if sims else None
+
 
 def split_sentences(words, max_len=12.0, back=4.0):
     """Cut at sentence-final punctuation; a run of max_len s without any is cut at the longest pause in its last `back`
@@ -390,9 +397,11 @@ def main():
             spk_ref = refs.get(u["spk"]) or emo
             emo_ref = emo
             if len(x_hi) / SR_HI < MIN_REF_S:
-                # the service rejects references under 1 s: a short unit borrows this speaker's
-                # reference, or failing that the latest one of anyone (wrong voice beats no dub)
-                emo_ref = spk_ref = refs.get(u["spk"]) or refs.last or emo
+                # the service rejects references under 1 s: a short unit borrows this speaker's reference, else that
+                # of the speaker who sounds most like it (a short line often opens a cluster of its own; taking the
+                # latest reference of anyone gave a man's line the woman's voice), else any (wrong voice beats none)
+                near = spk.nearest(u["spk"], lambda j: refs.get(j) is not None)
+                emo_ref = spk_ref = refs.get(u["spk"]) or (near is not None and refs.get(near)) or refs.last or emo
             x = ring.get(u["s"], u["e"])
             gain = float(np.clip(np.sqrt(np.mean(x ** 2)) / DUB_RMS, 0.3, 2.0)) if len(x) else 1.0
             out_wav = clips / f"dub_{n:05d}.wav"
