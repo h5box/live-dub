@@ -217,11 +217,16 @@ class Speakers:
         return max(sims)[1] if sims else None
 
 
-def split_sentences(words, max_len=12.0, back=4.0):
+def split_sentences(words, max_len=12.0, back=4.0, pause=1.2):
     """Cut at sentence-final punctuation; a run of max_len s without any is cut at the longest pause in its last `back`
-    s (not right after the word that crossed the limit: that left 1-word orphans like "of sport." dubbed on their own)."""
+    s (not right after the word that crossed the limit: that left 1-word orphans like "of sport." dubbed on their own).
+    A silence of `pause` s cuts too: windowed ASR sometimes drops the full stop, and two people's lines ran together
+    ("I'm sorry" ... "Good ad-lib." came out as one line, ToS climax 10-12); the longest pause inside one sentence in
+    the ToS clips was 0.64 s, and a cut-off fragment of the same speaker is joined to what follows anyway."""
     out, cur = [], []
     for w in words:
+        if cur and w["s"] - cur[-1]["e"] >= pause:
+            out.append(cur); cur = []
         cur.append(w)
         if w["w"].rstrip().endswith((".", "?", "!")):
             out.append(cur); cur = []
