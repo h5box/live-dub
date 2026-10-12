@@ -3,7 +3,7 @@ scripts/linux/setup_voxcpm.sh).
 
 Cloning is VoxCPM2's "controllable" mode: reference_wav_path = the speaker's reference clip, no transcript needed, so an
 English reference voices Chinese text directly. VoxCPM2 has no duration input, so the duration control is done after
-the fact: synthesize at natural pace, trim, factor = target_s / natural length (clamped 0.85-1.25 like the IndexTTS
+the fact: synthesize at natural pace, trim, factor = target_s / natural length (clamped 0.85-1.10 like the IndexTTS
 path), then WSOLA time-stretch (audiotsm). emo_ref is not used: the model takes one reference.
 """
 import time
@@ -13,7 +13,7 @@ import numpy as np
 
 from dubsvc.audio import trim_silence
 
-FMIN, FMAX = 0.85, 1.25
+FMIN, FMAX = 0.85, 1.10
 
 
 def stretch(x, factor):

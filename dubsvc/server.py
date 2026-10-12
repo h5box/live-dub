@@ -4,7 +4,7 @@
   POST /synthesize  {"id", "text", "lang", "spk_ref", "emo_ref"|null, "target_s"|null, "out"}
                     -> {"id", "out", "sr", "natural_s", "factor", "clamped", "audio_s", "wall_s", "queue_s"}
 
-Single pass: GPT once, factor = target_s / natural length (clamped 0.85-1.25), S2M + BigVGAN once; output trimmed
+Single pass: GPT once, factor = target_s / natural length (clamped 0.85-1.10), S2M + BigVGAN once; output trimmed
 (30 ms kept before the onset). Three backends:
   --backend omni  (default, fastest): proxy to the patched vLLM-Omni server (--omni-url; the backend starts both,
                     see livedub/server/services.py; scripts/linux/setup_dub.sh installs them)

@@ -33,10 +33,10 @@ index e48af91..e5e6ddc 100644
 +# ---- live-dub: single-pass duration control -------------------------------------------------------------------
 +# A request may carry extra_params.target_s (seconds). Its natural length is known only here, from the GPT code
 +# count: frames = codes * semantic_time_scale * 1.72, 256-sample hop at 22.05 kHz. The factor is
-+# target / natural, clamped to [0.85, 1.25] (the live-dub policy), then S2M + BigVGAN run once.
++# target / natural, clamped to [0.85, 1.10] (the live-dub policy), then S2M + BigVGAN run once.
 +# One JSON line per request goes to $LIVEDUB_OMNI_FACTOR_LOG so the caller (a serial queue) can read
 +# natural_s / factor / clamped back.
-+_LIVEDUB_MIN, _LIVEDUB_MAX = 0.85, 1.25
++_LIVEDUB_MIN, _LIVEDUB_MAX = 0.85, 1.10
 +_LIVEDUB_FRAME_S = 256 / 22050
 +logger.info("[live-dub] single-pass target_s patch loaded")
 +

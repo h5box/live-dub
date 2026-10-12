@@ -1,7 +1,7 @@
 """Client for the patched vLLM-Omni IndexTTS-2.5 server (started by the backend, 127.0.0.1:<ports.omni>).
 
 The patch (dubsvc/omni/vllm-omni-v0.30.0-target_s.patch) adds extra_params.target_s: stage 1 computes the factor
-from the GPT code count (clamped 0.85-1.25) and runs S2M + BigVGAN once, and appends one JSON line per request to
+from the GPT code count (clamped 0.85-1.10) and runs S2M + BigVGAN once, and appends one JSON line per request to
 $LIVEDUB_OMNI_FACTOR_LOG. Reading the last line back is only valid because dubsvc sends one request at a time.
 Pure stdlib + numpy + soundfile, so it runs in any venv that has those (the vLLM-Omni one does).
 """

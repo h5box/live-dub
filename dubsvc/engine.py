@@ -42,7 +42,7 @@ SR = 22050
 HOP = 256
 CODE_TO_FRAMES = 1.72
 SILENT_CODE = 52
-FACTOR_MIN, FACTOR_MAX = 0.85, 1.25
+FACTOR_MIN, FACTOR_MAX = 0.85, 1.10  # slowing a short line down further sounds dragged; it ends early instead
 
 
 def _sync():
