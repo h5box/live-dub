@@ -1,5 +1,5 @@
-"""Bilingual subtitle bitmaps (Pillow): Chinese on top (bold, wrapped at 24 chars at the punctuation nearest the
-middle), English below (wrapped by measured width), both outlined, anchored to the bottom of a 1920x1080 frame.
+"""Bilingual subtitle bitmaps (Pillow): Chinese on top (bold, wrapped into even lines of up to ~24 chars at nearby
+punctuation), English below (wrapped by measured width), both outlined, anchored to the bottom of a 1920x1080 frame.
 Rendered once per event and cached; the playout blends only the returned box. Placement is per stream (news
 channels own the bottom ~200 px with their own lower third): see configure(). Fonts come from settings (obs.font_*)
 or the first CJK font found on this system (Microsoft YaHei on Windows, Noto Sans CJK on Linux).
@@ -13,6 +13,7 @@ from . import settings
 
 W, H = 1920, 1080
 ZH_LINE, MARGIN_X, MARGIN_BOTTOM = 24, 80, 40
+ZH_MAX = 30  # 58 px glyphs: the most one line holds inside the margins
 BOX_ALPHA, BOX_PAD = 0.0, 16  # translucent backing box behind the subtitle block (0 = none)
 TAG_CORNER = "tl"  # tl / tr
 
@@ -28,14 +29,21 @@ def load_font(kind):
     return ImageFont.truetype(f, size)
 
 
-def wrap_zh(t: str) -> list[str]:
-    if len(t) <= ZH_LINE:
+def wrap_zh(t: str, n: int | None = None) -> list[str]:
+    """n even lines (default: as many as ZH_LINE needs; two halves used to run off the frame). Each cut goes to the
+    punctuation nearest its share, else the nearest spot outside a Latin word, within half a share and with no line
+    over ZH_MAX."""
+    if n is None:
+        n = -(-len(t) // ZH_LINE)
+    if n <= 1:
         return [t] if t else []
-    mid = len(t) / 2
-    cuts = [i + 1 for i, c in enumerate(t) if c in "，、；：,;" and 0 < i + 1 < len(t)]
-    best = min(cuts, key=lambda i: abs(i - mid)) if cuts else None
-    cut = best if best is not None and abs(best - mid) < len(t) / 4 else round(mid)
-    return [t[:cut].rstrip("，、；：,; "), t[cut:].lstrip()]
+    share = len(t) / n
+    ok = lambda i: abs(i - share) < share / 2 and i <= ZH_MAX and len(t) - i <= (n - 1) * ZH_MAX
+    word = lambda c: c.isascii() and (c.isalnum() or c in ".-'")
+    cuts = ([i + 1 for i, c in enumerate(t) if c in "，、；：,;" and ok(i + 1)]
+            or [i for i in range(1, len(t)) if ok(i) and not (word(t[i - 1]) and word(t[i]))])  # not inside "UltraFast"
+    cut = min(cuts, key=lambda i: abs(i - share)) if cuts else round(share)
+    return [t[:cut].rstrip("，、；：,; ")] + wrap_zh(t[cut:].lstrip(), n - 1)
 
 
 def wrap_en(t: str, width=W - 2 * MARGIN_X) -> list[str]:
@@ -69,7 +77,7 @@ def render(zh: str, en: str):
     if not lines:
         return None
     heights = [f.getbbox("国Ay")[3] + 10 for _, f, _, _ in lines]
-    block_h = sum(heights) + 8
+    block_h = int(sum(heights)) + 8
     img = Image.new("RGBA", (W, block_h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     if BOX_ALPHA > 0:
