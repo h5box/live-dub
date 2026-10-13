@@ -155,9 +155,9 @@ onUnmounted(() => unlisten?.());
       </div>
 
       <aside class="side card">
-        <div class="tabs">
-          <button :class="{ on: tab === 'subs' }" @click="setTab('subs')">字幕 <span v-if="rows.length" class="num">{{ rows.length }}</span></button>
-          <button :class="{ on: tab === 'state' }" @click="setTab('state')">状态</button>
+        <div class="tabs" role="tablist">
+          <button role="tab" :aria-selected="tab === 'subs'" :class="{ on: tab === 'subs' }" @click="setTab('subs')">字幕 <span v-if="rows.length" class="num">{{ rows.length }}</span></button>
+          <button role="tab" :aria-selected="tab === 'state'" :class="{ on: tab === 'state' }" @click="setTab('state')">状态</button>
           <span class="sp" />
           <span v-if="ended && s" class="chip" :class="{ critical: s.state === 'failed' }" :title="s.title">
             {{ s.state === "failed" ? "上一场没开起来" : "上一场" }} · {{ dayLabel(s.created) }} {{ hm(s.created) }}

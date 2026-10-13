@@ -336,7 +336,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
         <template v-else-if="veil.kind === 'count'">
           <b class="num">{{ veil.text }}</b><span>秒后开始播放（等翻译和配音先跑在前面）</span>
         </template>
-        <button v-else-if="veil.kind === 'click'" class="big" @click.stop="play"><Icon name="play" :size="28" /></button>
+        <button v-else-if="veil.kind === 'click'" class="big" aria-label="开始播放" @click.stop="play"><Icon name="play" :size="28" /></button>
         <template v-else>
           <Icon v-if="veil.kind === 'wait'" name="spinner" :size="22" class="spin" />
           <Icon v-else-if="veil.kind === 'error'" name="error" :size="22" />
@@ -352,7 +352,9 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
       <button class="btn ghost icon" title="后退 10 秒" @click="skip(-10)"><Icon name="back10" :size="17" /></button>
       <button class="btn ghost icon" title="前进 10 秒" @click="skip(10)"><Icon name="fwd10" :size="17" /></button>
       <span class="time num">{{ st.pt !== null ? clock(st.pt - p0) : "—" }}</span>
-      <div class="scrub" @pointerdown="scrub" @pointermove="hoverPT = ptFromEvent($event)" @pointerleave="hoverPT = null">
+      <div class="scrub" role="slider" tabindex="0" aria-label="播放进度（← / → 跳 5 秒）" aria-valuemin="0" :aria-valuemax="Math.round(span)"
+           :aria-valuenow="Math.round((pos(st.pt) * span) / 100)"
+           :aria-valuetext="st.pt !== null ? clock(st.pt - p0) : undefined" @pointerdown="scrub" @pointermove="hoverPT = ptFromEvent($event)" @pointerleave="hoverPT = null">
         <div class="track"><i v-for="([s, e], i) in props.processed ?? []" :key="i" class="prepared" :style="{ left: pos(s) + '%', width: Math.max(0, pos(e) - pos(s)) + '%' }" /><i class="done" :style="{ width: pos(st.pt) + '%' }" /></div>
         <i v-if="props.running && props.isLive && target() !== null" class="mark" :style="{ left: pos(target()) + '%' }" title="默认延时的位置" />
         <i class="thumb" :style="{ left: pos(st.pt) + '%' }" />
@@ -366,7 +368,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
         <option v-for="(label, k) in SUBS" :key="k" :value="k">{{ label }}</option>
       </select>
       <div class="volwrap">
-        <button class="btn ghost icon" title="音量" @click="st.vol = !st.vol"><Icon name="voice" :size="17" /></button>
+        <button class="btn ghost icon" title="音量" :aria-expanded="st.vol" @click="st.vol = !st.vol"><Icon name="voice" :size="17" /></button>
         <div v-if="st.vol" class="vol card" @click.stop>
           <label><span>原声</span><input v-model.number="prefs.orig" type="range" min="0" max="1" step="0.05" /></label>
           <label><span>配音</span><input v-model.number="prefs.dub" type="range" min="0" max="1.5" step="0.05" :disabled="!props.dubOn" /></label>
