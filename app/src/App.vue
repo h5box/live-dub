@@ -13,8 +13,12 @@ const VIEWS = { live: LiveView, history: HistoryView, services: ServicesView, se
 const view = ref<View>(load<View>("view", "live"));
 if (!(view.value in VIEWS)) view.value = "live";
 watch(view, (v) => save("view", v));
-watch(() => live.doctor, (report) => {
-  if (report && !report.ok && !load("setupDone", false)) view.value = "setup";
+// an unfinished setup opens on the wizard once, at start; later checks (the environment page runs one when it
+// opens) must not pull the user back there
+const stopFirstCheck = watch(() => live.doctor, (report) => {
+  if (!report) return;
+  stopFirstCheck();
+  if (!report.ok && !load("setupDone", false)) view.value = "setup";
 });
 
 onMounted(connect);
