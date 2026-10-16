@@ -15,6 +15,8 @@ import { computeStats, LOW_MARGIN_S } from "../lib/stats";
 import { history, loadList, select, remove } from "../stores/history";
 import { live } from "../stores/live";
 
+const emit = defineEmits<{ navigate: [view: "live"] }>();
+
 onMounted(loadList);
 onActivated(loadList);
 // a session that just ended shows up without a manual refresh
@@ -101,6 +103,10 @@ const STATE: Record<string, string> = { starting: "准备中", running: "直播�
       <div v-if="!info" class="placeholder">
         <Icon v-if="history.loading" name="spinner" :size="20" class="spin" />
         <p v-else-if="history.detailError">{{ history.detailError }}</p>
+        <div v-else-if="history.loaded && !history.error && !history.list.length" class="first">
+          <p>在「观看」页开始一场后，它的字幕、配音和运行记录会留在这里，可以回放、导出字幕。</p>
+          <button class="btn primary" @click="emit('navigate', 'live')">去观看</button>
+        </div>
         <p v-else>选一场看详情</p>
       </div>
       <template v-else>
@@ -188,6 +194,7 @@ const STATE: Record<string, string> = { starting: "准备中", running: "直播�
 
 .detail { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .placeholder { flex: 1; display: grid; place-items: center; color: var(--ink-3); }
+.placeholder .first { display: grid; justify-items: center; gap: 14px; max-width: 340px; text-align: center; line-height: 1.6; }
 .dh { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px 10px; }
 .dt { flex: 1; min-width: 0; }
 .dh h1 { font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
