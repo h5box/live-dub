@@ -34,6 +34,19 @@ const playout = computed(() => live.status?.health?.playout ?? {});
 const tab = ref<"subs" | "state">(load<string>("liveTab", "subs") === "state" ? "state" : "subs");
 const diagnostics = ref(false);
 function setTab(t: typeof tab.value) { tab.value = t; save("liveTab", t); }
+// tabs pattern: arrows / Home / End move between the tabs; stopped here so the player's window-level ← / → don't seek
+function tabKey(e: KeyboardEvent) {
+  const order = ["subs", "state"] as const;
+  const i = order.indexOf(tab.value);
+  const keys: Record<string, typeof tab.value> = { ArrowLeft: order[(i + order.length - 1) % order.length],
+    ArrowRight: order[(i + 1) % order.length], Home: order[0], End: order[order.length - 1] };
+  const next = keys[e.key];
+  if (!next || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  setTab(next);
+  document.getElementById(`live-tab-${next}`)?.focus();
+}
 
 /** seconds of program the session has produced on the default schedule; when over, from first frame to the end */
 const aired = computed(() => {
@@ -155,9 +168,11 @@ onUnmounted(() => unlisten?.());
       </div>
 
       <aside class="side card">
-        <div class="tabs" role="tablist">
-          <button role="tab" :aria-selected="tab === 'subs'" :class="{ on: tab === 'subs' }" @click="setTab('subs')">字幕 <span v-if="rows.length" class="num">{{ rows.length }}</span></button>
-          <button role="tab" :aria-selected="tab === 'state'" :class="{ on: tab === 'state' }" @click="setTab('state')">状态</button>
+        <div class="tabs" role="tablist" aria-label="侧栏" @keydown="tabKey">
+          <button id="live-tab-subs" role="tab" aria-controls="live-panel-subs" :aria-selected="tab === 'subs'"
+                  :tabindex="tab === 'subs' ? 0 : -1" :class="{ on: tab === 'subs' }" @click="setTab('subs')">字幕 <span v-if="rows.length" class="num">{{ rows.length }}</span></button>
+          <button id="live-tab-state" role="tab" aria-controls="live-panel-state" :aria-selected="tab === 'state'"
+                  :tabindex="tab === 'state' ? 0 : -1" :class="{ on: tab === 'state' }" @click="setTab('state')">状态</button>
           <span class="sp" />
           <span v-if="ended && s" class="chip" :class="{ critical: s.state === 'failed' }" :title="s.title">
             {{ s.state === "failed" ? "上一场没开起来" : "上一场" }} · {{ dayLabel(s.created) }} {{ hm(s.created) }}
@@ -165,7 +180,8 @@ onUnmounted(() => unlisten?.());
           </span>
         </div>
 
-        <SubtitleTimeline v-show="tab === 'subs'" ref="tl" :rows="rows" :playhead="media ? playhead : null" :p0="p0"
+        <SubtitleTimeline v-show="tab === 'subs'" id="live-panel-subs" ref="tl" role="tabpanel" aria-labelledby="live-tab-subs"
+                          :rows="rows" :playhead="media ? playhead : null" :p0="p0"
                           :air-base="airBase" :dub-on="dubOn" :window="400" start-at="bottom" :seekable="!!media && !!player.seek"
                           @seek="player.seek?.($event)">
           <template #empty>
@@ -173,7 +189,7 @@ onUnmounted(() => unlisten?.());
           </template>
         </SubtitleTimeline>
 
-        <div v-show="tab === 'state'" class="pane">
+        <div v-show="tab === 'state'" id="live-panel-state" class="pane" role="tabpanel" aria-labelledby="live-tab-state">
           <h4>服务</h4>
           <ServiceList @manage="$emit('navigate', 'services')" />
           <hr class="sep gap" />
