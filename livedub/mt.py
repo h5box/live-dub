@@ -70,8 +70,12 @@ def edit(a, b):
 def fix_names(text):
     def sub(m):
         w = m.group(0)
+        # a capital at the start of a sentence says nothing about a name ("Same thing." is not "Sam", "Seven people"
+        # not "Kevin"), so there only a case-only difference is fixed
+        before = m.string[:m.start()].rstrip()
+        first = not before or before[-1] in ".?!"
         for n in NAMES:
-            lim = 1 if len(n) < 5 else 2
+            lim = 0 if first else 1 if len(n) < 5 else 2
             if len(w) >= 4 and w != n and edit(w, n) <= lim and w[0].isupper():
                 return n
         return w

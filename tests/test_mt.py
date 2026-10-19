@@ -71,3 +71,10 @@ def test_misspelled_name_is_fixed_mid_sentence():
     mt.NAMES[:] = ["Satya", "Copilot"]
     assert mt.fix_names("Today Sathya showed Copilott to us.") == "Today Satya showed Copilot to us."
     assert mt.fix_names("a satya copilot") == "a satya copilot"   # lower case: not a name
+
+
+def test_sentence_start_capital_is_not_taken_for_a_name():
+    mt.NAMES[:] = ["Sam", "Kevin", "OpenAI", "Altman"]
+    assert mt.fix_names("Same thing. Seven people met Kevn.") == "Same thing. Seven people met Kevin."
+    # there a case-only difference is still fixed; a misspelling is left alone
+    assert mt.fix_names("Openai said so. Altmann agreed.") == "OpenAI said so. Altmann agreed."
