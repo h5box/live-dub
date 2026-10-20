@@ -187,6 +187,8 @@ const onFs = () => (st.fs = !!document.fullscreenElement);
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement;
   if (!visible || !props.media || ["INPUT", "SELECT", "TEXTAREA"].includes(t?.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  // Space activates a focused button, link or tab (stop, the side tabs, the player's own controls) instead of toggling
+  if (e.key === " " && t?.closest?.("button, a[href], summary, [role=button], [role=tab]")) return;
   if (e.key === " ") { e.preventDefault(); toggle(); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); skip(-5); }
   else if (e.key === "ArrowRight") { e.preventDefault(); skip(5); }

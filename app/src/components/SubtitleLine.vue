@@ -43,7 +43,8 @@ function parts(text: string): { t: string; m: boolean }[] {
 
 <template>
   <div class="line" :class="[phase, { open, low, seekable, ['edge-' + edge]: !!edge }]" role="button" tabindex="0"
-       :aria-expanded="open" :title="seekable ? '从这句开始播放' : undefined" @click="activate" @keydown.enter.prevent="activate">
+       :aria-expanded="open" :title="seekable ? '从这句开始播放' : undefined" @click="activate" @keydown.enter.prevent="activate"
+       @keydown.space.prevent="activate">
     <span v-if="edge" class="edge-label">{{ edgeLabel }}</span>
     <div class="t">
       <span class="num">{{ time }}</span>
