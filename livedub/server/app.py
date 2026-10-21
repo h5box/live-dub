@@ -216,12 +216,16 @@ async def online_test(name: str):
 async def service(name: str, action: str, req: SvcReq | None = None):
     if name not in LABELS or action not in ("start", "stop", "restart"):
         raise HTTPException(404)
+    assert session is not None
     if session.active and action != "start":
         raise HTTPException(409, "正在直播，先停播再停服务")
     req = req or SvcReq()
     kw = {}
     if req.config:
+        # checked before a restart stops anything; an unknown name used to start the default preset without a word
         kw["config"] = sess.preset_file(req.config)
+        if not kw["config"]:
+            raise HTTPException(404, f"没有预设 {req.config}")
     if req.model:
         kw["model"] = req.model
     if action in ("stop", "restart"):
