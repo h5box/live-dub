@@ -111,7 +111,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
           </template>
         </div>
         <p v-if="!showAll && complete.length" class="allok">
-          <Icon name="check" :size="13" class="ok" />{{ complete.map((g) => g.name).join("、") }}：都有了</p>
+          <Icon name="check" :size="13" class="ok" />已就绪：{{ complete.map((g) => g.name).join("、") }}</p>
         <p v-if="live.doctor" class="settings muted">设置文件：<code>{{ live.doctor.settings_file }}</code>
           {{ live.doctor.settings_exists ? "" : "（还没有，用的是默认值；要改路径、端口就照 settings.example.json 建一个）" }}</p>
       </div>
