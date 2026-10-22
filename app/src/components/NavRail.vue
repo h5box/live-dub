@@ -36,7 +36,7 @@ const starting = computed(() => ["starting", "stopping"].includes(session.value?
         <Icon :name="it.icon" :size="20" />
         <i v-if="it.id === 'live' && onAir" class="badge air" title="正在翻译" />
         <i v-else-if="it.id === 'live' && starting" class="badge busy" />
-        <i v-else-if="it.id === 'services' && svcTrouble" class="badge bad" title="环境还缺东西，或有服务出错" />
+        <i v-else-if="it.id === 'services' && svcTrouble" class="badge bad" title="环境缺少组件，或有服务出错" />
       </span>
       <span class="lbl">{{ it.label }}</span>
     </button>
@@ -49,7 +49,7 @@ const starting = computed(() => ["starting", "stopping"].includes(session.value?
       <span class="val num">{{ gb(gpu.used_mb) }}G</span>
     </div>
 
-    <div class="link" :class="{ off: !live.link }" :title="live.link ? '已连上后端 127.0.0.1:8090' : '连不上后端 127.0.0.1:8090'">
+    <div class="link" :class="{ off: !live.link }" :title="live.link ? '已连接后端 127.0.0.1:8090' : '无法连接后端 127.0.0.1:8090'">
       <Icon :name="live.link ? 'plug' : 'alert'" :size="14" />
       <span>{{ live.link ? "已连接" : "未连接" }}</span>
     </div>

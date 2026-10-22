@@ -28,7 +28,7 @@ def install_native():
     from .asr import FILES
     for name in FILES[:-1]:
         obj = next(s for s in info["siblings"] if s["rfilename"] == name)
-        update(message=f"正在下载并校验 {name}，中断后可重试续传")
+        update(message=f"正在下载并校验 {name}，中断后重试会继续下载")
         download(f"{HF}/{repo}/resolve/{info['sha']}/{name}", dest / name,
                  (obj.get("lfs") or {}).get("sha256"), obj.get("size"))
     info = get_json("https://api.github.com/repos/k2-fsa/sherpa-onnx/releases/tags/speaker-recongition-models")
@@ -41,7 +41,7 @@ def install_native():
 def install_tool(name):
     from scripts.fetch import download, extract, get_json
     if not settings.WINDOWS:
-        raise RuntimeError("自动安装工具目前支持 Windows；Linux 请用系统包管理器安装")
+        raise RuntimeError("自动安装工具目前仅支持 Windows；Linux 请用系统包管理器安装")
     repo = "BtbN/FFmpeg-Builds" if name == "ffmpeg" else "denoland/deno"
     info = get_json(f"https://api.github.com/repos/{repo}/releases/latest")
     asset = (next(a for a in info["assets"] if "win64-lgpl.zip" in a["name"]) if name == "ffmpeg" else
@@ -73,9 +73,9 @@ def install(component):
             update(message="正在安装配音环境（约 20 GB），请保持程序运行")
             if psutil.Process(pid).wait() != 0:
                 raise RuntimeError("配音安装失败，请查看 logs/setup-dub.log 后重试")
-        update(state="done", message="安装完成，请检查环境", error="")
+        update(state="done", message="安装完成，请重新检查环境", error="")
     except (Exception, SystemExit) as e:
-        update(state="failed", error=f"安装未完成：{e}。检查网络与磁盘空间后重试，可继续未完成的下载。")
+        update(state="failed", error=f"安装未完成：{e}。请检查网络和磁盘空间后重试，会继续未完成的下载。")
 
 
 async def start(component, model_dir=None):
@@ -94,6 +94,6 @@ async def start(component, model_dir=None):
                 raise ValueError("模型目录至少需要 1 GB 可用空间")
             values["onnx_dir"] = str(dest)
         settings.save({"asr": values})
-    update(state="running", message="准备下载…", error="")
+    update(state="running", message="正在准备下载…", error="")
     asyncio.create_task(asyncio.to_thread(install, component))
     return report()

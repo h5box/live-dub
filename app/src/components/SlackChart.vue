@@ -120,7 +120,7 @@ const tipLeft = computed(() => (hover.value && hover.value.px > width.value - 17
     <div class="legend">
       <span><i class="sw s1" />字幕余量</span>
       <span v-if="dubOn"><i class="sw s2" />配音余量</span>
-      <span class="unit">秒，离播出还有多久</span>
+      <span class="unit">单位：秒（完成时距播出）</span>
     </div>
     <div class="plot">
       <svg :width="width" :height="height" role="img"
@@ -145,14 +145,14 @@ const tipLeft = computed(() => (hover.value && hover.value.px > width.value - 17
           <circle v-if="hover.d !== undefined && dubOn" class="dot s2" :cx="hover.px" :cy="y(hover.d)" r="4" />
           <circle v-if="hover.s !== undefined" class="dot s1" :cx="hover.px" :cy="y(hover.s)" r="4" />
         </template>
-        <text v-if="!subVis.length && !dubVis.length" class="empty" :x="M.l + iw / 2" :y="M.t + ih / 2" text-anchor="middle">还没有数据</text>
+        <text v-if="!subVis.length && !dubVis.length" class="empty" :x="M.l + iw / 2" :y="M.t + ih / 2" text-anchor="middle">暂无数据</text>
       </svg>
       <div v-if="hover" class="tip" :style="{ left: tipLeft + 'px' }">
         <div class="tt num">{{ clock(hover.t) }}</div>
         <div v-if="hover.s !== undefined" class="tr"><i class="sw s1" />字幕 <b class="num">{{ sec1(hover.s) }}</b> 秒</div>
         <div v-if="hover.d !== undefined" class="tr"><i class="sw s2" />配音 <b class="num">{{ sec1(hover.d) }}</b> 秒</div>
         <div class="tz">{{ hover.zh }}</div>
-        <div class="th">点击在字幕里定位</div>
+        <div class="th">点击定位到对应字幕</div>
       </div>
     </div>
   </div>

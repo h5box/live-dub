@@ -81,7 +81,7 @@ function setup() {
   if (!v || !props.media) return;
   mixer.use(props.session ?? "");
   mixer.attach(v);
-  if (!Hls.isSupported()) { st.error = "这个窗口不能播放 HLS（缺 MediaSource）"; return; }
+  if (!Hls.isSupported()) { st.error = "当前窗口不支持 HLS 播放（缺少 MediaSource）"; return; }
   hls = new Hls({ enableWorker: true, backBufferLength: 900, maxBufferLength: 40, liveDurationInfinity: true,
     liveSyncDurationCount: 3, manifestLoadingMaxRetry: 30, levelLoadingMaxRetry: 30, fragLoadingMaxRetry: 10 });
   const onLevel = (details: LevelDetails) => {
@@ -100,13 +100,13 @@ function setup() {
   hls.on(Hls.Events.LEVEL_UPDATED, (_, d) => onLevel(d.details));
   hls.on(Hls.Events.ERROR, (_, d) => {
     if (!d.fatal) return;
-    if (++failures > 5) { st.error = "多次无法读取视频，请检查网络后重试。"; return; }
+    if (++failures > 5) { st.error = "多次读取视频失败，请检查网络后重试。"; return; }
     const manifest = [Hls.ErrorDetails.MANIFEST_LOAD_ERROR, Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT,
       Hls.ErrorDetails.MANIFEST_PARSING_ERROR, Hls.ErrorDetails.LEVEL_EMPTY_ERROR].includes(d.details);
     if (manifest) retry = window.setTimeout(setup, 2000);
     else if (d.type === Hls.ErrorTypes.NETWORK_ERROR) retry = window.setTimeout(() => hls?.startLoad(), 1000);
     else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) hls?.recoverMediaError();
-    else st.error = "视频无法解码，请重试或换一个视频。";
+    else st.error = "视频无法解码，请重试或更换视频。";
   });
   loaded = props.media;
   hls.loadSource(BASE + props.media);
@@ -296,12 +296,12 @@ const countdown = computed(() => {
 const veil = computed(() => {
   if (st.error) return { kind: "error", text: st.error };
   if (!props.media) return { kind: "idle", text: "" };
-  if (props.running && !props.anchor) return { kind: "wait", text: "正在拉流…" };
+  if (props.running && !props.anchor) return { kind: "wait", text: "正在连接视频源…" };
   if (countdown.value !== null) return { kind: "count", text: `${countdown.value}` };
-  if (st.first === null) return { kind: "wait", text: props.running ? "等第一段画面…" : "读取中…" };
+  if (st.first === null) return { kind: "wait", text: props.running ? "等待第一段画面…" : "读取中…" };
   if (st.needClick) return { kind: "click", text: "点击开始播放" };
   if (st.waiting && !video.value?.paused) return { kind: "wait", text: "缓冲中…" };
-  if (st.ended) return { kind: "ended", text: "播完了" };
+  if (st.ended) return { kind: "ended", text: "播放结束" };
   return null;
 });
 /** seconds behind the default schedule (0 when following) */
@@ -336,7 +336,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
       <div v-if="veil" class="veil" :class="veil.kind">
         <template v-if="veil.kind === 'idle'"><slot name="idle" /></template>
         <template v-else-if="veil.kind === 'count'">
-          <b class="num">{{ veil.text }}</b><span>秒后开始播放（等翻译和配音先跑在前面）</span>
+          <b class="num">{{ veil.text }}</b><span>秒后开始播放，先留出识别、翻译和配音的时间</span>
         </template>
         <button v-else-if="veil.kind === 'click'" class="big" aria-label="开始播放" @click.stop="play"><Icon name="play" :size="28" /></button>
         <template v-else>
@@ -358,12 +358,12 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
            :aria-valuenow="Math.round((pos(st.pt) * span) / 100)"
            :aria-valuetext="st.pt !== null ? clock(st.pt - p0) : undefined" @pointerdown="scrub" @pointermove="hoverPT = ptFromEvent($event)" @pointerleave="hoverPT = null">
         <div class="track"><i v-for="([s, e], i) in props.processed ?? []" :key="i" class="prepared" :style="{ left: pos(s) + '%', width: Math.max(0, pos(e) - pos(s)) + '%' }" /><i class="done" :style="{ width: pos(st.pt) + '%' }" /></div>
-        <i v-if="props.running && props.isLive && target() !== null" class="mark" :style="{ left: pos(target()) + '%' }" title="默认延时的位置" />
+        <i v-if="props.running && props.isLive && target() !== null" class="mark" :style="{ left: pos(target()) + '%' }" title="按设定延时播放的位置" />
         <i class="thumb" :style="{ left: pos(st.pt) + '%' }" />
         <span v-if="hoverPT !== null" class="tip num" :style="{ left: pos(hoverPT) + '%' }">{{ clock(hoverPT - p0) }}</span>
       </div>
       <button v-if="props.running && props.isLive" class="btn sm live" :class="{ on: player.follow && (behind ?? 0) < 3 }"
-              :title="player.follow ? '跟着默认延时播放' : '回到默认延时的位置'" @click="backToLive">
+              :title="player.follow ? '正按设定延时播放' : '回到按设定延时播放的位置'" @click="backToLive">
         <i />{{ player.follow && (behind ?? 0) < 3 ? `直播 · 延时 ${props.anchor?.delay ?? 30} 秒` : "回到直播位置" }}
       </button>
       <select v-model="prefs.subs" class="select subsel" title="字幕（C 切换；A / D 上一句 / 下一句）">
@@ -374,7 +374,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
         <div v-if="st.vol" class="vol card" @click.stop>
           <label><span>原声</span><input v-model.number="prefs.orig" type="range" min="0" max="1" step="0.05" /></label>
           <label><span>配音</span><input v-model.number="prefs.dub" type="range" min="0" max="1.5" step="0.05" :disabled="!props.dubOn" /></label>
-          <label class="chk"><input v-model="prefs.box" type="checkbox" />字幕加底</label>
+          <label class="chk"><input v-model="prefs.box" type="checkbox" />字幕背景</label>
         </div>
       </div>
       <button class="btn ghost icon" title="全屏（F）" @click="fullscreen"><Icon :name="st.fs ? 'shrink' : 'expand'" :size="16" /></button>

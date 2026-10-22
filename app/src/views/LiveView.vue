@@ -57,26 +57,26 @@ const aired = computed(() => {
 
 const kpi = computed(() => {
   const st = stats.value, d = st.dub, p = playout.value;
-  const problems = [d.late && `来不及 ${d.late}`, d.skipped && `跳过 ${d.skipped}`, d.failed && `失败 ${d.failed}`]
+  const problems = [d.late && `未赶上 ${d.late}`, d.skipped && `跳过 ${d.skipped}`, d.failed && `失败 ${d.failed}`]
     .filter(Boolean).join(" · ");
   return {
-    time: { label: aired.value !== null && aired.value < 0 ? "开始播放还有" : running.value ? "已进行" : "时长",
+    time: { label: aired.value !== null && aired.value < 0 ? "距开始播放" : running.value ? "已进行" : "时长",
             value: aired.value === null ? "—" : aired.value < 0 ? `${Math.ceil(-aired.value)} 秒` : clock(aired.value),
-            sub: s.value ? `延时 ${s.value.delay_s} 秒` : "还没开始过" },
-    subs: { value: String(st.subs), sub: st.mtMed !== null ? `翻译中位 ${sec1(st.mtMed)} 秒` : "" },
-    dub: !dubOn.value ? { value: "关", unit: "", sub: "只出字幕", tone: undefined, toneLabel: "" } : {
+            sub: s.value ? `延时 ${s.value.delay_s} 秒` : "尚未开始" },
+    subs: { value: String(st.subs), sub: st.mtMed !== null ? `翻译用时中位数 ${sec1(st.mtMed)} 秒` : "" },
+    dub: !dubOn.value ? { value: "未开启", unit: "", sub: "仅字幕", tone: undefined, toneLabel: "" } : {
       value: String(d.ok), unit: "句",
-      sub: problems || (d.short ? `短句不配 ${d.short}` : d.pending ? `排队 ${d.pending}` : "没有漏配"),
+      sub: problems || (d.short ? `短句不配音 ${d.short}` : d.pending ? `排队 ${d.pending}` : "无遗漏"),
       tone: d.failed ? "critical" as const : d.late + d.skipped ? "warning" as const : undefined,
-      toneLabel: d.failed ? "有失败" : "有漏配",
+      toneLabel: d.failed ? "有失败" : "有遗漏",
     },
     margin: {
       value: sec1(st.slackMed), unit: st.slackMed !== null ? "秒" : "",
-      sub: st.slackMin !== null ? `中位数 · 最少 ${sec1(st.slackMin)} 秒` : "",
+      sub: st.slackMin !== null ? `中位数 · 最低 ${sec1(st.slackMin)} 秒` : "",
       tone: st.slackMin === null ? undefined : st.slackMin < 0 ? "critical" as const : st.slackMin < LOW_MARGIN_S ? "warning" as const : undefined,
       toneLabel: st.slackMin !== null && st.slackMin < 0 ? "迟到" : "偏低",
     },
-    obs: { value: p.slate === undefined ? "—" : String(p.slate), sub: p.max_late_ms !== undefined ? `迟到 ${p.max_late_ms} ms` : "",
+    obs: { value: p.slate === undefined ? "—" : String(p.slate), sub: p.max_late_ms !== undefined ? `最多迟到 ${p.max_late_ms} 毫秒` : "",
            tone: p.slate ? "warning" as const : undefined },
   };
 });
@@ -120,8 +120,8 @@ onUnmounted(() => unlisten?.());
         正在连接本机服务。长时间无法连接时，请重新打开程序或检查「环境」页。
       </Banner>
       <Banner v-else-if="envMissing.length && !active" tone="warning">
-        这台机器还缺：{{ envMissing.join("、") }}。
-        <button class="btn sm" @click="$emit('navigate', 'services')">去「环境」页看怎么装</button>
+        本机缺少：{{ envMissing.join("、") }}。
+        <button class="btn sm" @click="$emit('navigate', 'services')">查看安装方法</button>
       </Banner>
       <Banner v-for="w in live.status?.warnings ?? []" :key="w" tone="warning">{{ w }}</Banner>
       <Banner v-if="live.error" tone="critical" dismissible @dismiss="live.error = ''">{{ live.error }}</Banner>
@@ -137,13 +137,13 @@ onUnmounted(() => unlisten?.());
                 <Icon name="spinner" :size="22" class="spin" /><p>{{ s.log.at(-1)?.[1] ?? "准备中" }}</p>
               </template>
               <template v-else-if="s?.state === 'failed'">
-                <Icon name="error" :size="22" class="bad" /><p>上一场没开起来：{{ s.log.at(-1)?.[1] }}</p>
-                <button class="btn" @click="retry(false)">重试</button><button class="btn" @click="retry(true)">只用字幕重试</button>
+                <Icon name="error" :size="22" class="bad" /><p>上一场启动失败：{{ s.log.at(-1)?.[1] }}</p>
+                <button class="btn" @click="retry(false)">重试</button><button class="btn" @click="retry(true)">仅字幕重试</button>
               </template>
               <template v-else>
-                <h3>贴一个直播或视频链接，或者选一个本地视频</h3>
-                <p>直播延时 {{ form.delay }} 秒；视频提前准备字幕，可暂停和跳转。</p>
-                <p class="muted">当前支持英语转简体中文；字幕和配音按句子时间与画面对齐。</p>
+                <h3>粘贴直播或视频链接，或选择本地视频</h3>
+                <p>直播会延后 {{ form.delay }} 秒播放；点播和本地视频会提前处理字幕，可暂停和跳转。</p>
+                <p class="muted">目前支持英语译为简体中文，字幕和配音按句与画面对齐。</p>
               </template>
             </div>
           </template>
@@ -159,7 +159,7 @@ onUnmounted(() => unlisten?.());
         </div>
 
         <section v-if="diagnostics && rows.length" class="card chartcard">
-          <header class="card-h"><h2>余量</h2><span class="muted">{{ running ? "最近 10 分钟" : "整场" }} · 做好时离默认播放时刻还有几秒，低于 5 秒可能来不及</span></header>
+          <header class="card-h"><h2>余量</h2><span class="muted">{{ running ? "最近 10 分钟" : "整场" }} · 每句完成时距播出的秒数，低于 5 秒可能赶不上</span></header>
           <div class="card-b">
             <SlackChart :rows="rows" :p0="p0" :span="running ? 600 : 0" :now="nowProgram" :height="130"
                         :delay="s?.delay_s ?? 30" :dub-on="dubOn" @pick="setTab('subs'); tl?.reveal($event)" />
@@ -175,7 +175,7 @@ onUnmounted(() => unlisten?.());
                   :tabindex="tab === 'state' ? 0 : -1" :class="{ on: tab === 'state' }" @click="setTab('state')">状态</button>
           <span class="sp" />
           <span v-if="ended && s" class="chip" :class="{ critical: s.state === 'failed' }" :title="s.title">
-            {{ s.state === "failed" ? "上一场没开起来" : "上一场" }} · {{ dayLabel(s.created) }} {{ hm(s.created) }}
+            {{ s.state === "failed" ? "上一场启动失败" : "上一场" }} · {{ dayLabel(s.created) }} {{ hm(s.created) }}
             <template v-if="aired !== null && s.state === 'ended'"> · {{ span(aired) }}</template>
           </span>
         </div>
@@ -185,7 +185,7 @@ onUnmounted(() => unlisten?.());
                           :air-base="airBase" :dub-on="dubOn" :window="400" start-at="bottom" :seekable="!!media && !!player.seek"
                           @seek="player.seek?.($event)">
           <template #empty>
-            <p class="none">{{ s?.state === "running" ? "已开始，识别出第一句后会出现在这里" : "开始后，字幕会一句句出现在这里，点一句就从那句开始播" }}</p>
+            <p class="none">{{ s?.state === "running" ? "已开始，识别出的第一句会显示在这里" : "开始后，字幕会逐句显示在这里；点击某一句即可从该句开始播放" }}</p>
           </template>
         </SubtitleTimeline>
 
@@ -198,14 +198,14 @@ onUnmounted(() => unlisten?.());
             <hr class="sep gap" /><h4>OBS 输出</h4><ObsCard />
           </template>
           <template v-if="s">
-            <hr class="sep gap" /><h4>{{ active ? "这一场的记录" : "上一场的记录" }}</h4>
+            <hr class="sep gap" /><h4>{{ active ? "本场记录" : "上一场记录" }}</h4>
             <SessionLog :log="s.log" :busy="s.state === 'starting'" />
           </template>
         </div>
       </aside>
     </div>
 
-    <div v-if="dragging" class="drop"><Icon name="film" :size="28" /><p>松开，用这个视频</p></div>
+    <div v-if="dragging" class="drop"><Icon name="film" :size="28" /><p>松开以使用此视频</p></div>
   </div>
 </template>
 

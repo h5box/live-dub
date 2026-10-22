@@ -94,7 +94,7 @@ async def setup_status():
 async def setup_start(req: SetupReq):
     assert session is not None
     if session.active:
-        raise HTTPException(409, "先停止观看，再安装组件")
+        raise HTTPException(409, "请先停止观看，再安装组件")
     if services.status.get("services", {}).get("asr", {}).get("up") and req.component == "subtitles":
         await services.stop("asr")
         if not await services.wait_down("asr", 30):
@@ -159,7 +159,7 @@ async def online_get():
 async def online_set(req: OnlineReq):
     """Save a provider's key (and base_url / model) to .secret/<provider>.json; the key is never sent back."""
     if req.provider not in mt_chat.PROVIDERS:
-        raise HTTPException(404, f"没有线上翻译接口 {req.provider}")
+        raise HTTPException(404, f"找不到线上翻译接口：{req.provider}")
     f = settings.secret_file(req.provider)
     cur = {}
     if f.exists():
@@ -218,14 +218,14 @@ async def service(name: str, action: str, req: SvcReq | None = None):
         raise HTTPException(404)
     assert session is not None
     if session.active and action != "start":
-        raise HTTPException(409, "正在直播，先停播再停服务")
+        raise HTTPException(409, "观看进行中不能停止服务，请先停止观看")
     req = req or SvcReq()
     kw = {}
     if req.config:
         # checked before a restart stops anything; an unknown name used to start the default preset without a word
         kw["config"] = sess.preset_file(req.config)
         if not kw["config"]:
-            raise HTTPException(404, f"没有预设 {req.config}")
+            raise HTTPException(404, f"找不到场景预设：{req.config}")
     if req.model:
         kw["model"] = req.model
     if action in ("stop", "restart"):
@@ -251,7 +251,7 @@ class StartReq(BaseModel):
 @app.post("/api/session/start")
 async def start(req: StartReq):
     if req.delay is not None and not 10 <= req.delay <= 120:
-        raise HTTPException(400, "延时 D 要在 10 到 120 秒之间")
+        raise HTTPException(400, "延时要在 10 到 120 秒之间")
     try:
         return await session.start(req.preset, req.src, req.delay, req.dub, req.obs, req.mt_model)
     except RuntimeError as e:
@@ -275,7 +275,7 @@ async def prioritize(req: PriorityReq):
     assert session is not None
     import math
     if not math.isfinite(req.pt):
-        raise HTTPException(400, "播放位置必须是有效数字")
+        raise HTTPException(400, "播放位置无效")
     try:
         await asyncio.to_thread(session.prioritize, req.pt)
     except (RuntimeError, OSError) as e:
@@ -299,7 +299,7 @@ async def sessions():
 async def session_detail(name: str):
     d = await asyncio.to_thread(sess.run_detail, name)
     if d is None:
-        raise HTTPException(404, f"没有这一场：{name}")
+        raise HTTPException(404, f"找不到这一场：{name}")
     return d
 
 
@@ -307,7 +307,7 @@ async def session_detail(name: str):
 async def media_playlist(name: str):
     text = await asyncio.to_thread(sess.playlist, name)
     if text is None:
-        raise HTTPException(404, "这一场没有可播的画面")
+        raise HTTPException(404, "这一场没有可播放的画面")
     return Response(text, media_type="application/vnd.apple.mpegurl", headers={"Cache-Control": "no-cache"})
 
 
@@ -327,7 +327,7 @@ async def export_subtitles(name: str, language: str = "zh"):
 async def delete_session(name: str, cache_only: bool = False):
     assert session is not None
     if session.active and (session.info or {}).get("name") == name:
-        raise HTTPException(409, "先停止本场，再清理历史")
+        raise HTTPException(409, "请先停止本场，再清理")
     try:
         await asyncio.to_thread(sess.remove_run, name, cache_only)
     except (ValueError, RuntimeError) as e:

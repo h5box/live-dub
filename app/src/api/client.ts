@@ -15,10 +15,10 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new Error("连不上后端（127.0.0.1:8090）");
+    throw new Error("无法连接后端（127.0.0.1:8090）");
   }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((data as { detail?: string }).detail || `后端返回 ${r.status}`);
+  if (!r.ok) throw new Error((data as { detail?: string }).detail || `后端返回错误 ${r.status}`);
   return data as T;
 }
 

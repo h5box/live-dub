@@ -13,12 +13,12 @@ const pct = computed(() => (g.value.total_mb ? (100 * (g.value.used_mb ?? 0)) / 
     <div class="row">
       <span class="lbl"><Icon name="chip" :size="14" />显存</span>
       <span v-if="g.total_mb" class="v num">{{ gb(g.used_mb) }} / {{ gb(g.total_mb) }} GB</span>
-      <span v-else class="v muted">读不到（nvidia-smi）</span>
+      <span v-else class="v muted">无法读取（nvidia-smi 不可用）</span>
     </div>
     <div class="bar"><i :style="{ width: Math.min(100, pct) + '%' }" /></div>
     <div class="row sub">
       <span>GPU 占用 {{ g.util ?? "—" }}%</span>
-      <span v-if="pct > 90" class="chip warning"><Icon name="alert" :size="12" />快满了</span>
+      <span v-if="pct > 90" class="chip warning"><Icon name="alert" :size="12" />即将用满</span>
     </div>
   </div>
 </template>

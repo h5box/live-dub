@@ -70,7 +70,7 @@ async function testProvider(p: Provider) {
   test[p.name] = "测试中…";
   try {
     const r = await api.testProvider(p.name);
-    test[p.name] = r.ok ? `能用：「${r.reply}」（${r.wall_s} 秒）` : `不行：${r.error}`;
+    test[p.name] = r.ok ? `测试通过：「${r.reply}」（${r.wall_s} 秒）` : `测试失败：${r.error}`;
   } catch (err) { test[p.name] = (err as Error).message; } finally { saving.value = ""; }
 }
 
@@ -81,8 +81,8 @@ onMounted(() => { checkEnv(); loadProviders(); });
   <div class="view">
     <header class="ph">
       <h1>环境</h1>
-      <p>这台机器还缺什么、各个服务的状态和日志、线上翻译的 key。开始翻译时会自动拉起识别和本地翻译
-        （打开「输出到 OBS」时还有 MediaMTX）；配音启动要 1.5–3 分钟，要配音就提前开。正在翻译时不能停服务。</p>
+      <p>查看本机缺少的组件、各服务的状态和日志，以及线上翻译的设置。开始观看时会自动启动识别和本地翻译
+        （开启「输出到 OBS」时还会启动 MediaMTX）；配音服务启动约需 1.5–3 分钟，建议提前启动。观看进行中不能停止服务。</p>
     </header>
     <Banner v-if="live.error" tone="critical" dismissible @dismiss="live.error = ''">{{ live.error }}</Banner>
 
@@ -91,14 +91,14 @@ onMounted(() => { checkEnv(); loadProviders(); });
         <span class="si"><Icon name="check" :size="16" /></span><h2>环境检查</h2>
         <span v-if="live.doctor" class="chip" :class="live.doctor.ok ? 'good' : 'critical'">
           <Icon :name="live.doctor.ok ? 'check' : 'alert'" :size="12" />
-          {{ live.doctor.ok ? "必需的都齐了" : `还缺 ${missingReq.length} 项必需的` }}</span>
+          {{ live.doctor.ok ? "必需项已就绪" : `缺少 ${missingReq.length} 个必需项` }}</span>
         <span class="sp" />
-        <label class="switch sm"><input v-model="showAll" type="checkbox" />显示已满足的</label>
+        <label class="switch sm"><input v-model="showAll" type="checkbox" />显示已就绪项</label>
         <button class="btn sm" :disabled="live.checking" @click="checkEnv">
           <Icon name="restart" :size="13" :class="{ spin: live.checking }" />重新检查</button>
       </header>
       <div class="card-b">
-        <p v-if="!live.doctor" class="muted">{{ live.checking ? "检查中…" : "连上后端后自动检查" }}</p>
+        <p v-if="!live.doctor" class="muted">{{ live.checking ? "检查中…" : "连接后端后自动检查" }}</p>
         <div v-for="g in listed" :key="g.name" class="grp">
           <h3><Icon :name="groupOk(g.items) ? 'check' : 'alert'" :size="13" :class="groupOk(g.items) ? 'ok' : 'bad'" />{{ g.name }}</h3>
           <template v-for="it in g.items" :key="it.label">
@@ -113,7 +113,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
         <p v-if="!showAll && complete.length" class="allok">
           <Icon name="check" :size="13" class="ok" />已就绪：{{ complete.map((g) => g.name).join("、") }}</p>
         <p v-if="live.doctor" class="settings muted">设置文件：<code>{{ live.doctor.settings_file }}</code>
-          {{ live.doctor.settings_exists ? "" : "（还没有，用的是默认值；要改路径、端口就照 settings.example.json 建一个）" }}</p>
+          {{ live.doctor.settings_exists ? "" : "（文件不存在，正在使用默认值；如需修改路径或端口，可参照 settings.example.json 创建）" }}</p>
       </div>
     </section>
 
@@ -125,9 +125,9 @@ onMounted(() => { checkEnv(); loadProviders(); });
           <SvcState :svc="svc(n)" />
           <span class="sp" />
           <template v-if="svc(n)?.up">
-            <button class="btn sm" :disabled="!!live.busy || active || settling(n)" :title="active ? '正在翻译，先停止' : ''"
+            <button class="btn sm" :disabled="!!live.busy || active || settling(n)" :title="active ? '观看进行中，请先停止' : ''"
                     @click="serviceAction(n, 'restart')"><Icon name="restart" :size="13" />重启</button>
-            <button class="btn sm" :disabled="!!live.busy || active || settling(n)" :title="active ? '正在翻译，先停止' : ''"
+            <button class="btn sm" :disabled="!!live.busy || active || settling(n)" :title="active ? '观看进行中，请先停止' : ''"
                     @click="serviceAction(n, 'stop')"><Icon name="power" :size="13" />停止</button>
           </template>
           <button v-else-if="!(n === 'mt' && online)" class="btn sm" :disabled="!!live.busy || settling(n) || !live.link"
@@ -137,7 +137,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
         <div class="card-b">
           <p class="what">{{ info(n)?.what }}</p>
           <p v-if="n === 'mt' && online" class="note"><Icon name="link" :size="13" />
-            {{ active ? "本场" : "当前选的预设" }}用线上翻译 {{ focusPreset?.mt_model }}，不需要这个服务。</p>
+            {{ active ? "本场" : "当前场景" }}使用线上翻译 {{ focusPreset?.mt_model }}，无需此服务。</p>
           <dl>
             <dt>运行在</dt><dd>{{ info(n)?.where }}</dd>
             <dt>端口</dt><dd class="num">{{ info(n)?.port }}</dd>
@@ -150,7 +150,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
             </template>
             <dt>日志</dt>
             <dd class="logs"><code v-for="l in info(n)?.logs ?? []" :key="l">{{ l }}</code>
-              <button class="btn ghost sm" @click="toggleLog(n)"><Icon name="log" :size="13" />{{ logs[n] ? "收起" : "看最后几行" }}</button></dd>
+              <button class="btn ghost sm" @click="toggleLog(n)"><Icon name="log" :size="13" />{{ logs[n] ? "收起日志" : "查看最近日志" }}</button></dd>
           </dl>
           <div v-if="n === 'asr' && svc(n)?.boost?.length" class="boost">
             <span class="k">热词</span>
@@ -160,7 +160,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
           <div v-if="logs[n]" class="logbox">
             <template v-for="(text, f) in logs[n]" :key="f">
               <div class="lf">{{ f }}</div>
-              <pre>{{ text || "（还没有内容）" }}</pre>
+              <pre>{{ text || "（暂无内容）" }}</pre>
             </template>
           </div>
         </div>
@@ -169,23 +169,23 @@ onMounted(() => { checkEnv(); loadProviders(); });
       <article class="card svc">
         <header class="card-h"><span class="si"><Icon name="key" :size="16" /></span><h2>线上翻译</h2></header>
         <div class="card-b">
-          <p class="what">没有 N 卡、或者想省显存时用：识别仍在本机，翻译交给线上接口（DeepSeek，或任何 OpenAI 兼容的接口）。
-            key 只存在本机的 <code>.secret/</code> 里。</p>
+          <p class="what">适合没有 NVIDIA 显卡或想节省显存时使用：识别仍在本机进行，翻译交给线上接口（DeepSeek 或任何 OpenAI 兼容接口）。
+            API key 只保存在本机的 <code>.secret/</code> 目录。</p>
           <div v-for="p in providers" :key="p.name" class="prov">
             <div class="ph2">
               <b>{{ p.label }}</b>
               <span class="chip" :class="p.problem ? 'warning' : 'good'">
                 <Icon :name="p.problem ? 'alert' : 'check'" :size="12" />{{ p.problem ? "未配置" : "已配置" }}</span>
-              <a v-if="p.key_url" :href="p.key_url" target="_blank" rel="noreferrer" class="muted">申请 key</a>
+              <a v-if="p.key_url" :href="p.key_url" target="_blank" rel="noreferrer" class="muted">申请 API key</a>
             </div>
             <label class="field"><span>接口地址</span>
               <input v-model="edit[p.name].base_url" class="input" spellcheck="false" placeholder="https://…/v1" /></label>
             <label class="field"><span>模型</span>
               <input v-model="edit[p.name].model" class="input" spellcheck="false"
-                     :placeholder="p.name === 'deepseek' ? '留空用 deepseek-flash' : '比如 qwen-plus、gpt-4.1-mini'" /></label>
+                     :placeholder="p.name === 'deepseek' ? '留空则使用 deepseek-flash' : '例如 qwen-plus、gpt-4.1-mini'" /></label>
             <label class="field"><span>API key</span>
               <input v-model="edit[p.name].api_key" class="input" type="password" autocomplete="off"
-                     :placeholder="p.has_key ? '已保存（留空不改）' : '粘贴 key'" /></label>
+                     :placeholder="p.has_key ? '已保存，留空则不修改' : '粘贴 API key'" /></label>
             <div class="acts">
               <button class="btn sm primary" :disabled="saving === p.name" @click="saveProvider(p)">保存</button>
               <button class="btn sm" :disabled="saving === p.name || !!p.problem" @click="testProvider(p)">测试</button>
@@ -200,7 +200,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
         <div class="card-b">
           <p v-if="live.status?.gpu?.name" class="what">{{ live.status.gpu.name }}</p>
           <GpuMeter />
-          <p class="what gapt">本地翻译约占 5 GB、配音约 6.5 GB。别的程序也在用这张卡时，可能放不下或互相拖慢。</p>
+          <p class="what gapt">本地翻译约占用 5 GB 显存，配音约 6.5 GB。其他程序同时使用显卡时，可能显存不足或互相拖慢。</p>
           <Banner v-for="w in live.status?.warnings ?? []" :key="w" tone="warning" class="err">{{ w }}</Banner>
         </div>
       </article>
@@ -212,7 +212,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
             <Icon :name="live.link ? 'check' : 'error'" :size="13" />{{ live.link ? "已连接" : "未连接" }}</span>
         </header>
         <div class="card-b">
-          <p class="what">窗口只是界面；起停服务、开始停止都由后端做。关掉窗口，后端和正在进行的翻译照旧。</p>
+          <p class="what">窗口只负责界面，服务的启停和观看的开始、停止都由后端完成。关闭窗口后，后端和进行中的翻译会继续运行。</p>
           <dl>
             <dt>地址</dt><dd><code>{{ BASE || "http://127.0.0.1:8090" }}</code></dd>
             <dt>手动启动</dt><dd><code>uv run python -m livedub.server</code></dd>

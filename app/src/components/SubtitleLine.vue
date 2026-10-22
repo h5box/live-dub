@@ -51,11 +51,11 @@ function parts(text: string): { t: string; m: boolean }[] {
       <span v-if="showSpk" class="spk">说话人 {{ row.spk + 1 }}</span>
     </div>
     <div class="txt">
-      <p class="zh"><template v-if="!row.zh">（没有译文）</template><template v-for="(x, i) in parts(row.zh)" :key="i"><mark v-if="x.m">{{ x.t }}</mark><template v-else>{{ x.t }}</template></template></p>
+      <p class="zh"><template v-if="!row.zh">（无译文）</template><template v-for="(x, i) in parts(row.zh)" :key="i"><mark v-if="x.m">{{ x.t }}</mark><template v-else>{{ x.t }}</template></template></p>
       <p class="en"><template v-for="(x, i) in parts(row.en)" :key="i"><mark v-if="x.m">{{ x.t }}</mark><template v-else>{{ x.t }}</template></template></p>
     </div>
     <div class="st">
-      <span v-if="phase === 'onair'" class="now"><i />正在播</span>
+      <span v-if="phase === 'onair'" class="now"><i />播出中</span>
       <span v-else-if="phase === 'queued' && eta !== undefined" class="eta num">{{ eta }} 秒后</span>
       <template v-if="dubOn">
         <span v-if="dv === 'ok'" class="dub" :title="DUB_HINT.ok"><Icon name="check" :size="13" class="okic" />{{ DUB_LABEL.ok }}</span>
@@ -64,7 +64,7 @@ function parts(text: string): { t: string; m: boolean }[] {
         <span v-else class="chip" :class="dv === 'failed' ? 'critical' : 'warning'" :title="row.err || DUB_HINT[dv]">
           <Icon :name="dv === 'failed' ? 'error' : 'alert'" :size="12" />{{ DUB_LABEL[dv] }}</span>
       </template>
-      <span v-if="low" class="chip warning" title="字幕写出时离默认播放时刻不到 5 秒">
+      <span v-if="low" class="chip warning" title="字幕完成时距播出不到 5 秒">
         <Icon name="alert" :size="12" />余量 {{ sec1(row.slack) }} 秒</span>
       <button v-if="seekable" class="info btn ghost sm icon" :class="{ on: open }" title="耗时明细" @click.stop="emit('toggle')">
         <Icon name="info" :size="13" /></button>
@@ -75,10 +75,10 @@ function parts(text: string): { t: string; m: boolean }[] {
       <span>时长 {{ sec1(dur) }} 秒</span>
       <span v-if="row.mt !== undefined">翻译用时 {{ row.mt.toFixed(2) }} 秒</span>
       <span v-if="row.slack !== undefined">字幕余量 {{ sec1(row.slack) }} 秒</span>
-      <span v-if="row.tts !== undefined">配音合成 {{ row.tts.toFixed(2) }} 秒</span>
-      <span v-if="row.factor !== undefined">时长缩放 ×{{ row.factor.toFixed(2) }}{{ row.clamped ? "（到上限）" : "" }}</span>
+      <span v-if="row.tts !== undefined">配音合成用时 {{ row.tts.toFixed(2) }} 秒</span>
+      <span v-if="row.factor !== undefined">时长缩放 ×{{ row.factor.toFixed(2) }}{{ row.clamped ? "（已达上限）" : "" }}</span>
       <span v-if="row.left !== undefined">配音余量 {{ sec1(row.left) }} 秒</span>
-      <span v-if="airAt">播出 {{ hms(airAt) }}</span>
+      <span v-if="airAt">播出时间 {{ hms(airAt) }}</span>
       <span class="muted">PT {{ row.pt0.toFixed(2) }}–{{ row.pt1.toFixed(2) }}</span>
       <span v-if="row.err" class="err">{{ row.err }}</span>
     </div>

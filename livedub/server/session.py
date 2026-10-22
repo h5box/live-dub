@@ -61,13 +61,13 @@ def model_problem(key: str) -> str | None:
     """Why this translation model cannot run here, in words for the UI, or None."""
     m = mt.models().get(key)
     if not m:
-        return f"没有翻译模型 {key}"
+        return f"找不到翻译模型 {key}"
     if m.get("api"):
         return mt_chat.problem(m["api"], m.get("model", ""))
     if not Path(mt.gguf_path(key)).is_file():
-        return f"模型文件还没下载（python scripts/fetch.py model {key}）"
+        return f"模型文件尚未下载（运行 uv run python scripts/fetch.py model {key}）"
     if not settings.tool("llama_server"):
-        return "还没有 llama-server（python scripts/fetch.py llama）"
+        return "尚未安装 llama-server（运行 uv run python scripts/fetch.py llama）"
     return None
 
 
@@ -94,9 +94,9 @@ def source_kind(src: str) -> str:
 def source_problem(src: str) -> str | None:
     """Why this source cannot start, in words for the UI, or None."""
     if not src:
-        return "没有填直播链接或视频文件"
+        return "请填写直播链接或视频文件路径"
     if source_kind(src) == "file" and not (ROOT / src).is_file():   # relative paths are from the project root
-        return f"视频文件不在：{src}"
+        return f"视频文件不存在：{src}"
     return None
 
 
@@ -246,15 +246,15 @@ def remove_run(name: str, cache_only=False):
     """Delete only an ended run inside RUNS; never follow a user-controlled run symlink."""
     import shutil
     if not re.fullmatch(NAME_RE, name):
-        raise ValueError("无效的历史名称")
+        raise ValueError("场次名称无效")
     d = RUNS / name
     if d.is_symlink() or d.resolve().parent != RUNS.resolve():
-        raise ValueError("历史目录超出了允许范围")
+        raise ValueError("路径超出历史目录")
     detail = run_detail(name)
     if detail is None:
-        raise ValueError("历史不存在")
+        raise ValueError("找不到这一场")
     if detail["info"]["state"] in ("starting", "running", "stopping"):
-        raise RuntimeError("正在处理的场次不能清理，请先停止")
+        raise RuntimeError("进行中的场次不能清理，请先停止")
     for target in ([d / "buf", d / "clips"] if cache_only else [d]):
         if target.exists():
             shutil.rmtree(target)
@@ -263,7 +263,7 @@ def remove_run(name: str, cache_only=False):
 def subtitles(name: str, language: str = "zh") -> str:
     detail = run_detail(name)
     if detail is None:
-        raise ValueError("历史不存在")
+        raise ValueError("找不到这一场")
     p0 = (detail["anchor"] or {}).get("p0", 0)
 
     def timestamp(pt):
@@ -318,11 +318,11 @@ class Session:
             if info.get("state") in ("running", "starting"):
                 if any(self._procs().values()):
                     info["state"] = "running"
-                    info.setdefault("log", []).append([time.time(), "后端重启后接回本场"])
+                    info.setdefault("log", []).append([time.time(), "后端重启后已恢复本场"])
                 else:
                     info["state"] = "ended"
                     info["ended"] = info.get("ended") or time.time()
-                    info.setdefault("log", []).append([time.time(), "后端重启时发现本场进程已不在"])
+                    info.setdefault("log", []).append([time.time(), "后端重启时本场进程已退出"])
                 self._save()
             return
 
@@ -340,10 +340,10 @@ class Session:
         """src: a URL or a local video path (default: the preset's own). The preset brings the rest (glossary, names,
         hotwords, subtitle placement); delay, dub, obs and mt_model override it for this run."""
         if self.active:
-            raise RuntimeError("已经有一场在跑，先停掉")
+            raise RuntimeError("已有一场正在进行，请先停止")
         pf = preset_file(preset)
         if not pf:
-            raise RuntimeError(f"没有预设 {preset}")
+            raise RuntimeError(f"找不到场景预设：{preset}")
         base = json.loads(pf.read_text(encoding="utf-8"))
         src = (src or base.get("src") or "").strip().strip('"')
         problem = source_problem(src)
@@ -357,7 +357,7 @@ class Session:
         cfg["mt_model"] = mt_model or cfg.get("mt_model") or settings.get()["mt"]["default"]
         why = model_problem(cfg["mt_model"])
         if why:
-            raise RuntimeError(f"翻译模型 {cfg['mt_model']} 用不了：{why}")
+            raise RuntimeError(f"翻译模型 {cfg['mt_model']} 不可用：{why}")
         yt = settings.get()["youtube"]   # for sites that ask to sign in; the preset's own cookies file wins
         if yt.get("cookies") and not cfg.get("cookies"):
             cfg["cookies"] = str(settings.path(yt["cookies"]))
@@ -387,11 +387,11 @@ class Session:
             await asyncio.to_thread(self._launch, cfg)
             self.info["state"] = "running"
             self.info["started"] = time.time()
-            self.step(("已开始，视频首段字幕就绪后播放；直播按设置延时播放" if cfg.get("ahead")
-                       else f"已开始，约 {cfg.get('delay_s', 30):g} 秒后开始播放")
+            self.step(("已开始：点播在首段字幕就绪后播放，直播按设定延时播放" if cfg.get("ahead")
+                       else f"已开始，约 {cfg.get('delay_s', 30):g} 秒后播放")
                       + (f"；OBS 媒体源地址 {OBS_URL}" if cfg.get("obs") else ""))
         except Exception as e:
-            self.step(f"开播失败：{e}")
+            self.step(f"启动失败：{e}")
             await asyncio.to_thread(self._kill_all)
             self.info["state"] = "failed"
             self.info["ended"] = time.time()
@@ -403,17 +403,17 @@ class Session:
             self.step("启动 MediaMTX")
             await self.svc.start("mediamtx")
             if not await self.svc.wait_up("mediamtx", 30):
-                raise RuntimeError("MediaMTX 起不来")
+                raise RuntimeError("MediaMTX 无法启动")
         backend = settings.get()["asr"]["backend"]
         want_boost = list(cfg.get("asr_boost", [])) if backend == "nemo" else []
         if s["asr"]["up"] and s["asr"].get("backend", "nemo") != backend:
             # e.g. the NeMo service from before switching to native recognition: it cannot read this run's paths
-            self.step(f"正在运行的识别服务（{s['asr'].get('backend', 'nemo')}）和设置（{backend}）不同，按设置重启识别")
+            self.step(f"运行中的识别服务（{s['asr'].get('backend', 'nemo')}）与设置（{backend}）不一致，按设置重启识别服务")
             await self.svc.stop("asr")
             await self.svc.wait_down("asr", 30)
             s["asr"]["up"] = False
         elif s["asr"]["up"] and s["asr"].get("boost", []) != want_boost:
-            self.step("识别服务的热词和本场配置不同，用本场配置重启识别")
+            self.step("识别服务的热词与本场配置不一致，按本场配置重启识别服务")
             await self.svc.stop("asr")
             await self.svc.wait_down("asr", 30)
             s["asr"]["up"] = False
@@ -421,13 +421,13 @@ class Session:
             self.step("启动识别服务（约 30 秒）")
             await self.svc.start("asr", config=self.dir / "config.json")
             if not await self.svc.wait_up("asr", 150):
-                raise RuntimeError(self.svc.errors.get("asr") or "识别服务起不来，看日志 logs/asr.log")
+                raise RuntimeError(self.svc.errors.get("asr") or "识别服务无法启动，请查看日志 logs/asr.log")
         model = cfg["mt_model"]
         online = bool(mt.models().get(model, {}).get("api"))
         if online:   # online translation: the processor calls the API, no llama-server
-            self.step(f"翻译用线上模型 {model}（整场对话做上下文）")
+            self.step(f"使用线上翻译模型 {model}（以整场内容为上下文）")
         elif s["mt"]["up"] and s["mt"].get("model") != model:
-            self.step(f"翻译服务跑的不是 {model}，重启")
+            self.step(f"运行中的翻译服务不是 {model}，正在重启")
             await self.svc.stop("mt")
             await self.svc.wait_down("mt", 30)
             s["mt"]["up"] = False
@@ -435,12 +435,12 @@ class Session:
             self.step(f"启动翻译服务 {model}")
             await self.svc.start("mt", model=model)
             if not await self.svc.wait_up("mt", 180, lambda x: x.get("model") == model):
-                raise RuntimeError(self.svc.errors.get("mt") or "翻译服务起不来，看日志 logs/mt.log")
+                raise RuntimeError(self.svc.errors.get("mt") or "翻译服务无法启动，请查看日志 logs/mt.log")
         if cfg["dub"] and not s["dub"]["up"]:
-            self.step("启动中文配音（首次可能需要 2–3 分钟）")
+            self.step("启动配音服务（约需 1.5–3 分钟）")
             await self.svc.start("dub")
             if not await self.svc.wait_up("dub", 600):
-                raise RuntimeError("配音启动失败，可关闭中文配音后重试；" + self.svc.errors.get("dub", "请检查环境"))
+                raise RuntimeError("配音服务启动失败，可关闭中文配音后重试。原因：" + self.svc.errors.get("dub", "未知，请查看「环境」页"))
 
     def _launch(self, cfg: dict):
         d, rel = self.dir, self.dir.relative_to(ROOT) if self.dir.is_relative_to(ROOT) else self.dir
@@ -474,7 +474,7 @@ class Session:
     # ---- stop ---------------------------------------------------------------------------------------------
     def prioritize(self, pt: float):
         if not self.active or not self.dir:
-            raise RuntimeError("没有正在处理的视频")
+            raise RuntimeError("当前没有进行中的视频")
         try:
             source = json.loads((self.dir / "source.json").read_text(encoding="utf-8"))
             cfg = json.loads((self.dir / "config.json").read_text(encoding="utf-8"))
@@ -491,7 +491,7 @@ class Session:
         from ..ingest import listed
         rows = [r for r in listed(self.dir / "buf") if (self.dir / "buf" / r[0]).is_file()]
         if not rows or pt < 0 or pt > float(rows[-1][2]):
-            raise RuntimeError("目标位置的视频还未读取，请稍后重试")
+            raise RuntimeError("目标位置的视频尚未读取，请稍后重试")
         start = next((r for r in reversed(rows) if float(r[1]) <= max(0, pt - 2)), rows[0])
         target = self.dir / "priority.json"
         tmp = target.with_suffix(".tmp")
@@ -509,17 +509,17 @@ class Session:
 
     async def stop(self) -> dict:
         if not self.active:
-            raise RuntimeError("现在没有在跑的场次")
+            raise RuntimeError("当前没有进行中的场次")
         if self.task and not self.task.done():
             self.task.cancel()
         self.info["state"] = "stopping"
-        self.step("停播")
+        self.step("正在停止")
         n = await asyncio.to_thread(self._kill_all)
         await asyncio.sleep(1)
         n += await asyncio.to_thread(self._kill_all)   # stragglers spawned while the first sweep ran
         self.info["state"] = "ended"
         self.info["ended"] = time.time()
-        self.step(f"已停，结束了 {n} 个进程")
+        self.step(f"已停止，结束了 {n} 个进程")
         return self.info
 
     # ---- monitoring ---------------------------------------------------------------------------------------
@@ -539,7 +539,7 @@ class Session:
             if self.info["state"] == "running" and not grace and not any(running.values()):
                 self.info["state"] = "ended"
                 self.info["ended"] = time.time()
-                self.step("三个进程都已退出，本场结束")
+                self.step("所有进程已退出，本场结束")
         source, progress = {}, {}
         for file, obj in (("source.json", source), ("progress.json", progress)):
             try:

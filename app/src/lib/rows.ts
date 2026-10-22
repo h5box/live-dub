@@ -73,15 +73,15 @@ export function dubView(r: Row, aired: boolean): DubView {
 }
 
 export const DUB_LABEL: Record<DubView, string> = {
-  ok: "已配音", late: "来不及", skipped: "跳过", failed: "配音失败", pending: "配音中", short: "短句不配",
+  ok: "已配音", late: "未赶上", skipped: "已跳过", failed: "配音失败", pending: "配音中", short: "短句不配音",
   none: "未配音",
 };
 export const DUB_HINT: Record<DubView, string> = {
-  ok: "配音已混进节目",
-  late: "合成完时已经过了播出时间，这句没配音",
-  skipped: "轮到它时离播出不到 2 秒，没合成",
+  ok: "配音已混入节目",
+  late: "合成完成时已过播出时间，本句未配音",
+  skipped: "轮到本句时距播出不到 2 秒，未合成",
   failed: "配音服务出错",
-  pending: "在排队或合成中",
+  pending: "排队或合成中",
   short: "短于 0.8 秒的句子不配音",
-  none: "没有配音记录（配音服务没开或这句没送去合成）",
+  none: "无配音记录（配音服务未开启，或本句未送去合成）",
 };

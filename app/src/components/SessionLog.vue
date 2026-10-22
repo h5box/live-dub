@@ -6,7 +6,7 @@ import Icon from "./Icon.vue";
 const props = withDefaults(defineProps<{ log: [number, string][]; max?: number; busy?: boolean }>(), { max: 6 });
 const all = ref(false);
 const shown = computed(() => (all.value ? props.log : props.log.slice(-props.max)));
-const bad = (m: string) => /失败|出错|起不来|错误|不在/.test(m);
+const bad = (m: string) => /失败|出错|错误|无法|不存在|超时|已退出/.test(m);
 </script>
 
 <template>
@@ -19,7 +19,7 @@ const bad = (m: string) => /失败|出错|起不来|错误|不在/.test(m);
         <span class="m"><Icon v-if="bad(l[1])" name="error" :size="12" class="badic" />{{ l[1] }}</span>
       </li>
     </ol>
-    <p v-if="!log.length" class="none">还没有记录</p>
+    <p v-if="!log.length" class="none">暂无记录</p>
   </div>
 </template>
 

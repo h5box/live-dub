@@ -46,6 +46,7 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 - 路径、端口、工具和 Linux 环境走 livedub/settings.py；新增设置有默认值并更新配置文档。
 - 进程用 server/procs.py 的 spawn；Linux 命令用 settings.linux_argv，路径用 to_linux。
 - 用户界面、错误和提示日志用中文；代码注释用英文解释原因；代码和数据路径不用中文。
+- 文案站在用户角度，严谨简洁：说结果和下一步，不写内部记号（D、PT）和口语（起不来、跑）；错误写明原因和处理办法；同一事物一个叫法（仅字幕、场景、设置向导、NVIDIA 显卡、API key）。
 - 密钥只放 .secret/，模板在 .secret.example/；不得记录到日志。
 - 不入库：settings.json、.secret/、configs/local/、tools/、models/、outputs/、logs/、data/、.tmp/。
 - 改行为同步对应 docs；实测记 docs/dev/；新任务文档按 docs/YYYY-MM/中文.md 存放。

@@ -74,16 +74,16 @@ def info() -> dict:
     dub_what = {"omni": "IndexTTS-2.5（vLLM-Omni），克隆说话人音色", "local": "IndexTTS-2.5（进程内），克隆说话人音色",
                 "voxcpm": "VoxCPM2，克隆说话人音色"}.get(dub["backend"], dub["backend"])
     return {
-        "asr": {"what": "Parakeet 英文识别 + TitaNet 说话人" + ("（ONNX；不支持识别热词）" if s["asr"]["backend"] == "onnx" else ""), "where": f"{OS_NAME if s['asr']['backend'] == 'onnx' else lin}，CPU", "port": str(settings.port("asr")),
+        "asr": {"what": "Parakeet 英文识别 + TitaNet 说话人区分" + ("（ONNX，不支持热词）" if s["asr"]["backend"] == "onnx" else ""), "where": f"{OS_NAME if s['asr']['backend'] == 'onnx' else lin}，CPU", "port": str(settings.port("asr")),
                 "boot": "约 30 秒", "logs": [rel(log_path("asr"))]},
-        "mt": {"what": "本地翻译模型（llama-server）；用线上翻译时不需要", "where": f"{OS_NAME}，GPU",
+        "mt": {"what": "本地翻译模型（llama-server），使用线上翻译时无需启动", "where": f"{OS_NAME}，GPU",
                "port": str(settings.port("mt")), "boot": "约 1 分钟", "logs": [rel(log_path("mt"))]},
         "dub": {"what": dub_what, "where": f"{lin}，GPU（约 {dub['vram_gb']:g} GB）",
                 "port": (f"{settings.port('dub')} → {settings.port('omni')}" if dub["backend"] == "omni"
                          else str(settings.port("dub"))),
                 "boot": "约 1.5–3 分钟", "logs": [rel(log_path("dub"))] + ([rel(log_path("omni"))] if dub["backend"] == "omni" else [])},
-        "mediamtx": {"what": "本机 RTMP 服务：只在「输出到 OBS」时用，OBS 从这里拉流", "where": OS_NAME,
-                     "port": str(settings.port("rtmp")), "boot": "几秒", "logs": [rel(log_path("mediamtx"))]},
+        "mediamtx": {"what": "本机 RTMP 服务，仅在「输出到 OBS」时使用，OBS 从这里拉流", "where": OS_NAME,
+                     "port": str(settings.port("rtmp")), "boot": "数秒", "logs": [rel(log_path("mediamtx"))]},
     }
 
 
@@ -116,7 +116,7 @@ def gpu_warnings(g: dict, svc: dict, mt_key: str | None = None, want_dub: bool =
     """Plain warnings about the graphics card: no NVIDIA card, or too little free memory for what would still have to
     start (the local translation model mt_key, the dubbing service) and is not running yet."""
     if not g:
-        return ["没检测到 NVIDIA 显卡（nvidia-smi）：本地翻译和配音要用 N 卡；可以用线上翻译，只出字幕。"]
+        return ["未检测到 NVIDIA 显卡（nvidia-smi）。本地翻译和配音需要 NVIDIA 显卡，可改用线上翻译并关闭配音。"]
     free = (g["total_mb"] - g["used_mb"]) / 1024
     need = []
     m = mt.models().get(mt_key or settings.get()["mt"]["default"], {})
@@ -124,9 +124,9 @@ def gpu_warnings(g: dict, svc: dict, mt_key: str | None = None, want_dub: bool =
         need.append(("本地翻译", m["vram_gb"]))
     if want_dub and not svc.get("dub", {}).get("up"):
         need.append(("配音", settings.get()["dub"]["vram_gb"]))
-    short = [f"{n}约 {v:g} GB" for n, v in need if v > free]
+    short = [f"{n}约需 {v:g} GB" for n, v in need if v > free]
     if short:
-        return [f"显存只剩约 {free:.1f} GB，" + "、".join(short) + "，可能不够：关掉别的占显存的程序，或者改用线上翻译、不开配音。"]
+        return [f"可用显存约 {free:.1f} GB，" + "、".join(short) + "，可能不足。请关闭其他占用显存的程序，或改用线上翻译、关闭配音。"]
     return []
 
 
@@ -137,11 +137,11 @@ def linux_missing(paths: dict[str, str]) -> list[str]:
     try:
         r = settings.linux_run(tests + " ; echo __ok__", timeout=90)
     except (OSError, subprocess.SubprocessError) as e:
-        raise RuntimeError(f"调不起 Linux 环境（{side}）：{e}")
+        raise RuntimeError(f"无法调用 Linux 环境（{side}）：{e}")
     lines = [l.strip() for l in r.stdout.replace("\x00", "").splitlines() if l.strip()]
     if "__ok__" not in lines:   # wsl.exe's own errors come back as UTF-16: drop the NULs and show the gist
         msg = ((r.stdout or "") + (r.stderr or "")).replace("\x00", "").strip()
-        raise RuntimeError(f"Linux 环境（{side}）没响应：{msg[-200:] or r.returncode}")
+        raise RuntimeError(f"Linux 环境（{side}）没有响应：{msg[-200:] or r.returncode}")
     return [l for l in lines if l != "__ok__"]
 
 
@@ -183,7 +183,7 @@ class Services:
                 if done or now - since > START_TIMEOUT[name]:
                     self.pending.pop(name, None)
                     if not done:
-                        self.errors[name] = ("启动超时，看日志 " + " ".join(info()[name]["logs"]) if kind == "starting"
+                        self.errors[name] = ("启动超时，请查看日志 " + " ".join(info()[name]["logs"]) if kind == "starting"
                                              else "停止超时")
                 else:
                     st["pending"] = kind
@@ -206,14 +206,14 @@ class Services:
         """Fail early, in words, when the Linux side or a file the service needs is missing."""
         missing = linux_missing(paths)
         if missing:
-            raise RuntimeError(f"{what}还没装好，缺：{'、'.join(missing)}（见 docs/安装.md）")
+            raise RuntimeError(f"{what}尚未安装完整，缺少：{'、'.join(missing)}（见 docs/安装.md）")
 
     def start_asr(self, config: Path):
         a = settings.get()["asr"]
         if a["backend"] == "onnx":
             from ..asr import FILES
             if any(not (settings.path(a["onnx_dir"]) / f).is_file() for f in FILES):
-                raise RuntimeError("原生识别模型还没装好，请打开首次设置下载模型")
+                raise RuntimeError("原生识别模型尚未安装，请在「设置向导」中下载")
             procs.spawn(settings.python_argv("livedub.asr") + ["--port", str(settings.port("asr"))], log_path("asr"), cwd=ROOT)
             return
         self._linux_check({"识别的 Python 环境": a["python"], "Parakeet 模型": a["model"],
@@ -235,11 +235,11 @@ class Services:
     def start_mt(self, model_key: str):
         exe = settings.tool("llama_server")
         if not exe:
-            raise RuntimeError("找不到 llama-server：运行 python scripts/fetch.py llama 下载，或在 settings.json 的 "
-                               "tools.llama_server 填它的路径")
+            raise RuntimeError("找不到 llama-server：运行 uv run python scripts/fetch.py llama 下载，或在 settings.json 的 "
+                               "tools.llama_server 中填写路径")
         gguf = mt.gguf_path(model_key)
         if not gguf or not Path(gguf).is_file():
-            raise RuntimeError(f"翻译模型文件不在：{gguf}（python scripts/fetch.py model {model_key} 下载）")
+            raise RuntimeError(f"翻译模型文件不存在：{gguf}（运行 uv run python scripts/fetch.py model {model_key} 下载）")
         env = {}
         tools = ROOT / "tools" / "llama.cpp"
         if not settings.WINDOWS and Path(exe).is_relative_to(tools):
@@ -292,8 +292,8 @@ class Services:
     def start_mediamtx(self):
         exe = settings.tool("mediamtx")
         if not exe:
-            raise RuntimeError("找不到 MediaMTX：运行 python scripts/fetch.py mediamtx 下载，或在 settings.json 的 "
-                               "tools.mediamtx 填它的路径")
+            raise RuntimeError("找不到 MediaMTX：运行 uv run python scripts/fetch.py mediamtx 下载，或在 settings.json 的 "
+                               "tools.mediamtx 中填写路径")
         TMP.mkdir(exist_ok=True)
         cfg = TMP / "mediamtx.yml"
         # RTMP on this machine only (the playout pushes, OBS pulls); every other protocol off

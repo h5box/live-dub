@@ -216,7 +216,7 @@ def session():
     elif s == "failed":
         c = info["created"]
         info.update(state="failed", ended=c + 152, log=[[c + 2, "启动识别服务（约 30 秒）"],
-                                                        [c + 152, "开播失败：识别服务起不来，看日志 logs/asr.log"]])
+                                                        [c + 152, "启动失败：识别服务无法启动，请查看日志 logs/asr.log"]])
         info.pop("started", None)
     return info
 
@@ -273,9 +273,9 @@ def doctor():
 
 
 PROVIDERS = {"deepseek": {"name": "deepseek", "label": "DeepSeek", "base_url": "https://api.deepseek.com", "model": "",
-                          "has_key": False, "key_url": "https://platform.deepseek.com/api_keys", "problem": "还没填 API key"},
+                          "has_key": False, "key_url": "https://platform.deepseek.com/api_keys", "problem": "未填写 API key"},
              "custom": {"name": "custom", "label": "自定义接口（OpenAI 兼容）", "base_url": "", "model": "",
-                        "has_key": False, "key_url": "", "problem": "还没填 API key"}}
+                        "has_key": False, "key_url": "", "problem": "未填写 API key"}}
 
 
 def log_tail(name):
@@ -349,7 +349,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(f.read_bytes() if f.is_file() else tone(CLIP_S.get(m[2], 2.0)), "audio/wav")
         if p.startswith("/api/sessions/"):
             d = real.run_detail(p.rsplit("/", 1)[1])
-            return self._json(d) if d else self._json({"detail": "没有这一场"}, 404)
+            return self._json(d) if d else self._json({"detail": "找不到这一场"}, 404)
         if p == "/api/stream":
             return self.stream()
         self._json({"detail": "not found"}, 404)
@@ -374,7 +374,7 @@ class H(BaseHTTPRequestHandler):
                 return self._json({"detail": "没有这个接口"}, 404)
             v.update({k: body[k] for k in ("base_url", "model") if body.get(k) is not None})
             v["has_key"] = v["has_key"] or bool(body.get("api_key"))
-            v["problem"] = None if v["has_key"] and v["base_url"] else "还没填 API key"
+            v["problem"] = None if v["has_key"] and v["base_url"] else "未填写 API key"
             return self._json(list(PROVIDERS.values()))
         m = re.fullmatch(r"/api/settings/online/(\w+)/test", p)
         if m:

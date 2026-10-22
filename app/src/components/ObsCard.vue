@@ -24,7 +24,7 @@ async function copy() {
       <button class="btn sm" :class="{ ok: copied }" @click="copy">
         <Icon :name="copied ? 'check' : 'copy'" :size="13" />{{ copied ? "已复制" : "复制" }}</button>
     </div>
-    <p class="hint">OBS 里加「媒体源」，取消勾选「本地文件」，填这个地址。每场都是同一个地址，设一次就行。</p>
+    <p class="hint">在 OBS 中添加「媒体源」，取消勾选「本地文件」，填入此地址。每场地址相同，只需设置一次。</p>
   </div>
 </template>
 

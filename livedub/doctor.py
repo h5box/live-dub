@@ -42,22 +42,22 @@ def checks() -> list[dict]:
     s = settings.get()
     out = []
     g = "基础"
-    out.append(item(g, "Python", sys.version_info >= (3, 12), platform.python_version(), "需要 Python 3.12 以上（uv 会自动装）"))
+    out.append(item(g, "Python", sys.version_info >= (3, 12), platform.python_version(), "需要 Python 3.12 或更高版本（uv 会自动安装）"))
     ff = _version([settings.ffmpeg(), "-version"])
     out.append(item(g, "ffmpeg", ff and _version([settings.ffprobe(), "-version"]),
                     (ff or "").replace("ffmpeg version ", "").split(" ")[0],
-                    "Windows：winget install Gyan.FFmpeg；Linux：sudo apt install ffmpeg（或在 settings.json 的 tools 里填路径）"))
+                    "Windows：winget install Gyan.FFmpeg；Linux：sudo apt install ffmpeg（或在 settings.json 的 tools 中填写路径）"))
     for pkg in ("yt-dlp", "streamlink"):
         v = _pkg(pkg)
         out.append(item(g, pkg, v, v or "", "在项目目录运行 uv sync"))
     js = settings.js_runtime()
-    out.append(item("看 YouTube", "JavaScript 运行时（Deno 或 Node.js）", js, js or "",
-                    "yt-dlp 解 YouTube 的播放校验要用：装 Deno 或 Node.js（Windows：winget install DenoLand.Deno）", "optional"))
+    out.append(item("YouTube 播放", "JavaScript 运行时（Deno 或 Node.js）", js, js or "",
+                    "yt-dlp 处理 YouTube 的播放校验需要它：安装 Deno 或 Node.js（Windows：winget install DenoLand.Deno）", "optional"))
     yt = s["youtube"]
     if yt.get("cookies") or yt.get("cookies_from_browser"):
         ok = bool(yt.get("cookies_from_browser")) or settings.path(yt["cookies"]).exists()
-        out.append(item("看 YouTube", "登录 cookies", ok, yt.get("cookies_from_browser") or yt.get("cookies"),
-                        f"settings.json 里 youtube.cookies 指的文件不在：{yt.get('cookies')}", "optional"))
+        out.append(item("YouTube 播放", "登录 cookies", ok, yt.get("cookies_from_browser") or yt.get("cookies"),
+                        f"settings.json 中 youtube.cookies 指向的文件不存在：{yt.get('cookies')}", "optional"))
 
     # the Linux side: one call checks every path the speech services need
     a, d = s["asr"], s["dub"]
@@ -77,7 +77,7 @@ def checks() -> list[dict]:
         missing, err = set(linux_missing(paths)), None
     except RuntimeError as e:
         missing, err = set(paths), str(e)
-    fix_side = ("先装 WSL 2：在管理员 PowerShell 里运行 wsl --install，重启后按提示建好 Ubuntu" if WSL
+    fix_side = ("先安装 WSL 2：在管理员 PowerShell 中运行 wsl --install，重启后按提示创建 Ubuntu" if WSL
                 else "需要 bash")
     out.append(item("配音（可选）" if native else "识别", f"{side} 环境", err is None, "" if err else err,
                     fix_side, "optional" if native else "required"))
@@ -86,13 +86,13 @@ def checks() -> list[dict]:
         from .asr import FILES
         model_dir = settings.path(a["onnx_dir"])
         ready = all((model_dir / f).is_file() for f in FILES)
-        out.append(item("识别", "原生 CPU 识别（ONNX，无需 WSL）", ready, str(model_dir), "打开首次设置，下载识别模型"))
+        out.append(item("识别", "原生 CPU 识别（ONNX，无需 WSL）", ready, str(model_dir), "在「设置向导」中下载识别模型"))
     else:
         out.append(item("识别", "识别环境（Parakeet + TitaNet，CPU）", asr_ok,
-                    a["model"] if asr_ok else "缺：" + "、".join(
+                    a["model"] if asr_ok else "缺少：" + "、".join(
                         {"asr_py": "Python 环境", "asr_model": "Parakeet 模型", "asr_spk": "TitaNet 模型"}[k]
                         for k in ("asr_py", "asr_model", "asr_spk") if k in missing),
-                        f"在项目目录运行 {LINUX_RUN} scripts/linux/setup_asr.sh（约 6 GB，十几分钟）"))
+                        f"在项目目录运行 {LINUX_RUN} scripts/linux/setup_asr.sh（约 6 GB，需十几分钟）"))
 
     # translation: a local model (llama-server + GGUF) or an online provider; one of them is enough
     g = "翻译"
@@ -112,10 +112,10 @@ def checks() -> list[dict]:
             any_ready |= ok and bool(llama)
             out.append(item(g, f"本地模型：{m.get('label', key)}", ok, str(f) if ok else "",
                             f"运行 uv run python scripts/fetch.py model {key}（约 {m.get('size_gb', '?')} GB）", "optional"))
-    out.append(item(g, "至少有一种翻译能用", any_ready, "",
-                    "下载一个本地模型（要 N 卡、约 5 GB 显存），或在「环境」页填线上翻译的 API key"))
+    out.append(item(g, "至少一种翻译可用", any_ready, "",
+                    "下载一个本地模型（需要 NVIDIA 显卡和约 5 GB 显存），或在「环境」页填写线上翻译的 API key"))
     out.append(item("显卡", "NVIDIA 显卡", gp, f"{gp['name']}，显存 {gp['total_mb'] / 1024:.0f} GB" if gp else "",
-                    "本地翻译和配音要 NVIDIA 显卡；没有也能用：线上翻译、只出字幕", "optional"))
+                    "本地翻译和配音需要 NVIDIA 显卡；没有显卡时可使用线上翻译并关闭配音", "optional"))
 
     g = "配音（可选）"
     labels = {"dub_py": "Python 环境", "dub_vllm": "vLLM-Omni", "dub_model": "模型", "dub_aux": "模型的辅助文件",
@@ -124,16 +124,16 @@ def checks() -> list[dict]:
     dub_ok = err is None and not missing & set(dub_keys)
     script = {"omni": "setup_dub.sh", "local": "setup_indextts.sh", "voxcpm": "setup_voxcpm.sh"}.get(d["backend"], "setup_dub.sh")
     out.append(item(g, f"配音环境（{d['backend']}）", dub_ok,
-                    d["model"] if dub_ok else "缺：" + "、".join(labels[k] for k in dub_keys if k in missing),
-                    f"在项目目录运行 {LINUX_RUN} scripts/linux/{script}（约 20 GB，要 N 卡约 {d['vram_gb']:g} GB 显存）",
+                    d["model"] if dub_ok else "缺少：" + "、".join(labels[k] for k in dub_keys if k in missing),
+                    f"在项目目录运行 {LINUX_RUN} scripts/linux/{script}（约 20 GB，需要 NVIDIA 显卡和约 {d['vram_gb']:g} GB 显存）",
                     "optional"))
 
     g = "OBS 输出（可选）"
     mtx = settings.tool("mediamtx")
     out.append(item(g, "MediaMTX", mtx, mtx or "", "运行 uv run python scripts/fetch.py mediamtx", "optional"))
     fz = settings.font("zh_bold")
-    out.append(item(g, "中文字体（烧字幕用）", fz, fz or "",
-                    "装一个中文字体（Linux：sudo apt install fonts-noto-cjk），或在 settings.json 的 obs.font_zh 填路径",
+    out.append(item(g, "中文字体（用于烧录字幕）", fz, fz or "",
+                    "安装中文字体（Linux：sudo apt install fonts-noto-cjk），或在 settings.json 的 obs.font_zh 中填写字体路径",
                     "optional"))
     return out
 
@@ -165,8 +165,8 @@ def main():
         if i["fix"]:
             print(f"        -> {i['fix']}")
     s = summary(items)
-    print("\n" + ("必需的都齐了。" if s["ok"] else "还缺必需的：" + "、".join(s["missing_required"])))
-    print(f"设置文件：{s['settings_file']}" + ("" if s["settings_exists"] else "（没有，用的是默认值）"))
+    print("\n" + ("必需项已就绪。" if s["ok"] else "缺少必需项：" + "、".join(s["missing_required"])))
+    print(f"设置文件：{s['settings_file']}" + ("" if s["settings_exists"] else "（文件不存在，正在使用默认值）"))
     sys.exit(0 if s["ok"] else 1)
 
 

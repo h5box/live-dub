@@ -17,9 +17,9 @@ function hint(n: SvcName): string {
   if (n === "dub" && s.up) return [s.model, s.vram_mib ? `显存 ${(s.vram_mib / 1024).toFixed(1)} GB` : ""].filter(Boolean).join(" · ");
   if (n === "mt" && s.up) return s.model ?? s.model_path ?? "";
   if (s.state !== "down") return "";
-  if (n === "dub") return "要配音就先启动";
+  if (n === "dub") return "需要配音时请提前启动";
   if (n === "mediamtx") return "输出到 OBS 时自动启动";
-  return "开始时自动启动";
+  return "开始观看时自动启动";
 }
 const canStart = (n: SvcName) => !live.busy && services.value?.[n]?.state === "down" && !(n === "mt" && online.value);
 </script>
@@ -31,7 +31,7 @@ const canStart = (n: SvcName) => !live.busy && services.value?.[n]?.state === "d
       <span class="nm">{{ services?.[n]?.label ?? n }}</span>
       <template v-if="n === 'mt' && online && !services?.mt?.up">
         <span class="st-online"><Icon name="link" :size="13" />线上</span>
-        <span class="hint">{{ focusPreset?.mt_model }}，不占本机</span>
+        <span class="hint">{{ focusPreset?.mt_model }}，不占用本机资源</span>
       </template>
       <template v-else>
         <SvcState :svc="services?.[n]" />

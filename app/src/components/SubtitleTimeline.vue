@@ -64,7 +64,7 @@ function edge(i: number): "before" | "after" | undefined {
 }
 const edgeLabel = computed(() => {
   const nxt = shown.value[cut.value];
-  return nxt ? `播放位置 · 下一句 ${Math.max(0, Math.ceil(nxt.pt0 - (props.playhead as number)))} 秒后` : "播放位置 · 等下一句";
+  return nxt ? `播放位置 · 下一句 ${Math.max(0, Math.ceil(nxt.pt0 - (props.playhead as number)))} 秒后` : "播放位置 · 等待下一句";
 });
 
 function toggle(k: string) { if (open.has(k)) open.delete(k); else open.add(k); }
@@ -141,7 +141,7 @@ defineExpose({ reveal });
     </div>
     <transition name="fade">
       <button v-if="live && !follow" class="back btn primary sm" @click="backToLive">
-        <Icon name="jump" :size="14" />回到正在播的位置</button>
+        <Icon name="jump" :size="14" />回到当前播放位置</button>
     </transition>
   </div>
 </template>
