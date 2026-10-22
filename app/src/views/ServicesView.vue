@@ -31,6 +31,9 @@ const missingReq = computed(() => live.doctor?.missing_required ?? []);
 const showAll = ref(false);
 const shown = (it: DoctorItem) => showAll.value || !it.ok;
 const groupOk = (items: DoctorItem[]) => items.every((i) => i.ok || i.level !== "required");
+// with the satisfied ones hidden, complete groups fold into one line so what is missing stands out
+const complete = computed(() => groups.value.filter((g) => g.items.every((i) => i.ok)));
+const listed = computed(() => (showAll.value ? groups.value : groups.value.filter((g) => !complete.value.includes(g))));
 
 // ---- logs ------------------------------------------------------------------------------------------------------
 const logs = reactive<Partial<Record<SvcName, Record<string, string> | null>>>({});
@@ -96,7 +99,7 @@ onMounted(() => { checkEnv(); loadProviders(); });
       </header>
       <div class="card-b">
         <p v-if="!live.doctor" class="muted">{{ live.checking ? "检查中…" : "连上后端后自动检查" }}</p>
-        <div v-for="g in groups" :key="g.name" class="grp">
+        <div v-for="g in listed" :key="g.name" class="grp">
           <h3><Icon :name="groupOk(g.items) ? 'check' : 'alert'" :size="13" :class="groupOk(g.items) ? 'ok' : 'bad'" />{{ g.name }}</h3>
           <template v-for="it in g.items" :key="it.label">
             <div v-if="shown(it)" class="it" :class="{ ok: it.ok, req: it.level === 'required' }">
@@ -106,8 +109,9 @@ onMounted(() => { checkEnv(); loadProviders(); });
               <code v-if="it.fix" class="fix">{{ it.fix }}</code>
             </div>
           </template>
-          <p v-if="!showAll && g.items.every((i) => i.ok)" class="allok">都有了</p>
         </div>
+        <p v-if="!showAll && complete.length" class="allok">
+          <Icon name="check" :size="13" class="ok" />{{ complete.map((g) => g.name).join("、") }}：都有了</p>
         <p v-if="live.doctor" class="settings muted">设置文件：<code>{{ live.doctor.settings_file }}</code>
           {{ live.doctor.settings_exists ? "" : "（还没有，用的是默认值；要改路径、端口就照 settings.example.json 建一个）" }}</p>
       </div>
@@ -267,7 +271,8 @@ dd { margin: 0; color: var(--ink-1); min-width: 0; overflow-wrap: anywhere; }
 .it .dt { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .it .fix { grid-column: 2 / -1; font-size: 11.5px; color: var(--ink-2); background: var(--surface-2); padding: 3px 7px;
   border-radius: 4px; white-space: normal; overflow-wrap: anywhere; }
-.allok { font-size: 12px; color: var(--ink-3); padding: 4px 0 0 22px; }
+.allok { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.allok .ok { color: var(--good); flex: none; margin-top: 2px; }
 .settings { grid-column: 1 / -1; font-size: 12px; overflow-wrap: anywhere; }
 
 .prov { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
