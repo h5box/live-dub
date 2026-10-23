@@ -82,6 +82,9 @@ const kpi = computed(() => {
 });
 
 const ended = computed(() => !active.value && !!s.value && ["ended", "failed"].includes(s.value.state));
+const lastRun = computed(() => !s.value ? "" : [s.value.state === "failed" ? "上一场启动失败" : "上一场",
+  `${dayLabel(s.value.created)} ${hm(s.value.created)}`, aired.value !== null && s.value.state === "ended" ? span(aired.value) : ""]
+  .filter(Boolean).join(" · "));
 const envMissing = computed(() => live.doctor?.missing_required ?? []);
 const media = computed(() => (s.value && s.value.state !== "failed" ? s.value.media ?? null : null));
 const nowProgram = computed(() => (playhead.value !== null && p0.value !== undefined ? playhead.value - p0.value : null));
@@ -174,10 +177,7 @@ onUnmounted(() => unlisten?.());
           <button id="live-tab-state" role="tab" aria-controls="live-panel-state" :aria-selected="tab === 'state'"
                   :tabindex="tab === 'state' ? 0 : -1" :class="{ on: tab === 'state' }" @click="setTab('state')">状态</button>
           <span class="sp" />
-          <span v-if="ended && s" class="chip" :class="{ critical: s.state === 'failed' }" :title="s.title">
-            {{ s.state === "failed" ? "上一场启动失败" : "上一场" }} · {{ dayLabel(s.created) }} {{ hm(s.created) }}
-            <template v-if="aired !== null && s.state === 'ended'"> · {{ span(aired) }}</template>
-          </span>
+          <span v-if="ended && s" class="chip last" :class="{ critical: s.state === 'failed' }" :title="`${s.title}\n${lastRun}`">{{ lastRun }}</span>
         </div>
 
         <SubtitleTimeline v-show="tab === 'subs'" id="live-panel-subs" ref="tl" role="tabpanel" aria-labelledby="live-tab-subs"
@@ -219,11 +219,12 @@ onUnmounted(() => unlisten?.());
 .side { width: 400px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
 .tabs { display: flex; align-items: center; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--border); min-height: 42px; }
 .tabs > button { height: 42px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: none;
-  font: inherit; color: var(--ink-2); cursor: pointer; margin-bottom: -1px; }
+  font: inherit; color: var(--ink-2); cursor: pointer; margin-bottom: -1px; flex-shrink: 0; white-space: nowrap; }
 .tabs > button.on { color: var(--ink-1); font-weight: 600; border-bottom-color: var(--accent); }
 .tabs > button span { color: var(--ink-3); font-weight: 400; margin-left: 2px; }
 .tabs .sp { flex: 1; }
-.tabs .chip { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+/* a block, not the chip's inline-flex: text-overflow only cuts text with "…" outside a flex container */
+.tabs .last { display: block; min-width: 0; line-height: 22px; overflow: hidden; text-overflow: ellipsis; }
 .pane { flex: 1; overflow-y: auto; padding: 14px; }
 .pane h4 { font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin: 0 0 6px; }
 .chartcard { flex-shrink: 0; }
