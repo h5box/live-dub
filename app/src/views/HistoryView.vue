@@ -70,6 +70,19 @@ const shown = computed(() => {
 });
 const tl = ref<InstanceType<typeof SubtitleTimeline> | null>(null);
 function pick(key: string) { q.value = ""; tab.value = "subs"; setTimeout(() => tl.value?.reveal(key)); }
+// same keys as the 观看 tabs; stopPropagation keeps the replay player from also seeking on ← / →
+function tabKey(e: KeyboardEvent) {
+  const order = ["subs", "log"] as const;
+  const i = order.indexOf(tab.value);
+  const keys: Record<string, typeof tab.value> = { ArrowLeft: order[(i + order.length - 1) % order.length],
+    ArrowRight: order[(i + 1) % order.length], Home: order[0], End: order[order.length - 1] };
+  const next = keys[e.key];
+  if (!next || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  tab.value = next;
+  document.getElementById(`history-tab-${next}`)?.focus();
+}
 
 const STATE: Record<string, string> = { starting: "准备中", running: "翻译中", stopping: "停止中", ended: "已结束", failed: "启动失败" };
 </script>
@@ -155,19 +168,24 @@ const STATE: Record<string, string> = { starting: "准备中", running: "翻译�
           <SlackChart :rows="rows" :p0="p0" :height="150" :delay="info.delay_s" :dub-on="info.dub" @pick="pick" />
         </div>
         <div class="tabs">
-          <button :class="{ on: tab === 'subs' }" @click="tab = 'subs'">字幕 <span class="num">{{ rows.length }}</span></button>
-          <button :class="{ on: tab === 'log' }" @click="tab = 'log'">记录 <span class="num">{{ info.log.length }}</span></button>
+          <div class="tablist" role="tablist" aria-label="本场内容" @keydown="tabKey">
+            <button id="history-tab-subs" role="tab" aria-controls="history-panel-subs" :aria-selected="tab === 'subs'"
+                    :tabindex="tab === 'subs' ? 0 : -1" :class="{ on: tab === 'subs' }" @click="tab = 'subs'">字幕 <span class="num">{{ rows.length }}</span></button>
+            <button id="history-tab-log" role="tab" aria-controls="history-panel-log" :aria-selected="tab === 'log'"
+                    :tabindex="tab === 'log' ? 0 : -1" :class="{ on: tab === 'log' }" @click="tab = 'log'">记录 <span class="num">{{ info.log.length }}</span></button>
+          </div>
           <span class="sp" />
           <label v-if="tab === 'subs'" class="search">
             <Icon name="search" :size="14" />
-            <input v-model="q" class="input" placeholder="搜索中文或英文" />
+            <input v-model="q" class="input" placeholder="搜索中文或英文" aria-label="搜索本场字幕" />
             <span v-if="q" class="muted num">{{ shown.length }} 句</span>
           </label>
         </div>
-        <SubtitleTimeline v-if="tab === 'subs'" ref="tl" :rows="shown" :p0="p0" :air-base="airBase" :dub-on="info.dub" :q="q">
+        <SubtitleTimeline v-if="tab === 'subs'" id="history-panel-subs" ref="tl" role="tabpanel" aria-labelledby="history-tab-subs"
+                          :rows="shown" :p0="p0" :air-base="airBase" :dub-on="info.dub" :q="q">
           <template #empty><p class="none pad">{{ q ? "没有匹配的句子" : "本场没有字幕" }}</p></template>
         </SubtitleTimeline>
-        <div v-else class="logbox"><SessionLog :log="info.log" :max="1000" /></div>
+        <div v-else id="history-panel-log" class="logbox" role="tabpanel" aria-labelledby="history-tab-log"><SessionLog :log="info.log" :max="1000" /></div>
       </template>
     </section>
   </div>
@@ -205,10 +223,11 @@ const STATE: Record<string, string> = { starting: "准备中", running: "翻译�
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0 16px; }
 .chartbox { padding: 12px 16px 8px; }
 .tabs { display: flex; align-items: center; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--border); }
-.tabs > button { height: 36px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: none;
+.tablist { display: flex; gap: 4px; }
+.tablist > button { height: 36px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: none;
   font: inherit; color: var(--ink-2); cursor: pointer; margin-bottom: -1px; }
-.tabs > button.on { color: var(--ink-1); font-weight: 600; border-bottom-color: var(--accent); }
-.tabs > button span { color: var(--ink-3); font-weight: 400; margin-left: 2px; }
+.tablist > button.on { color: var(--ink-1); font-weight: 600; border-bottom-color: var(--accent); }
+.tablist > button span { color: var(--ink-3); font-weight: 400; margin-left: 2px; }
 .tabs .sp { flex: 1; }
 .search { display: flex; align-items: center; gap: 6px; color: var(--ink-3); }
 .search .input { height: 28px; width: 180px; }
