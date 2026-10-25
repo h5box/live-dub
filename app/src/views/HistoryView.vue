@@ -193,6 +193,8 @@ const STATE: Record<string, string> = { starting: "准备中", running: "翻译�
 
 <style scoped>
 .history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 12px; }
+/* the global .select is a full-width form field; here it sits in the button row at the buttons' height */
+.history-actions .select { width: auto; height: 32px; background-position: calc(100% - 15px) 13px, calc(100% - 10px) 13px; }
 .replay { padding: 0 16px 12px; max-height: 55vh; overflow-y: auto; flex-shrink: 0; }
 .view { height: 100%; display: flex; gap: var(--gap); padding: var(--gap); min-width: 0; }
 .list { width: 288px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }

@@ -19,7 +19,7 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm);
-  font: 500 13px/1 var(--font); white-space: nowrap; cursor: pointer;
+  font: 500 13px/1 var(--font); white-space: nowrap; cursor: pointer; text-decoration: none;
   color: var(--ink-1); background: var(--surface); border: 1px solid var(--border-2);
   transition: background-color .12s, border-color .12s, color .12s;
 }
