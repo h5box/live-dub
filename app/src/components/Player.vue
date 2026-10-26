@@ -24,6 +24,7 @@ const props = withDefaults(defineProps<{
   isLive?: boolean;          // paced in real time (a live source, or a session with OBS output): follow the anchor;
                              // otherwise processed ahead, and seeking past the processed part asks for it first
   processed?: [number, number][];
+  sourceError?: string | null; // the backend's reason the source cannot be opened, shown instead of "connecting"
 }>(), { isLive: true });
 
 const box = ref<HTMLElement | null>(null);
@@ -296,7 +297,7 @@ const countdown = computed(() => {
 const veil = computed(() => {
   if (st.error) return { kind: "error", text: st.error };
   if (!props.media) return { kind: "idle", text: "" };
-  if (props.running && !props.anchor) return { kind: "wait", text: "正在连接视频源…" };
+  if (props.running && !props.anchor) return props.sourceError ? { kind: "source", text: props.sourceError } : { kind: "wait", text: "正在连接视频源…" };
   if (countdown.value !== null) return { kind: "count", text: `${countdown.value}` };
   if (st.first === null) return { kind: "wait", text: props.running ? "等待第一段画面…" : "读取中…" };
   if (st.needClick) return { kind: "click", text: "点击开始播放" };
@@ -341,7 +342,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
         <button v-else-if="veil.kind === 'click'" class="big" aria-label="开始播放" @click.stop="play"><Icon name="play" :size="28" /></button>
         <template v-else>
           <Icon v-if="veil.kind === 'wait'" name="spinner" :size="22" class="spin" />
-          <Icon v-else-if="veil.kind === 'error'" name="error" :size="22" />
+          <Icon v-else-if="veil.kind === 'error' || veil.kind === 'source'" name="error" :size="22" />
           <span>{{ veil.text }}</span>
           <button v-if="veil.kind === 'error'" class="btn" @click.stop="failures = 0; setup()">重试播放</button>
         </template>
@@ -407,7 +408,8 @@ video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: con
 .veil.idle { background: #0d0d0d; cursor: default; }
 .veil.count b { font-size: 56px; font-weight: 600; line-height: 1; }
 .veil.count span { color: rgba(255, 255, 255, 0.75); }
-.veil.error .ic { color: var(--critical); }
+.veil.error .ic, .veil.source .ic { color: var(--critical); }
+.veil.source span { max-width: 36em; line-height: 1.6; }
 .veil .big { width: 72px; height: 72px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.92); color: #111;
   display: grid; place-items: center; cursor: pointer; padding-left: 5px; }
 

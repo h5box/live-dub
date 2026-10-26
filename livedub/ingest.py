@@ -87,7 +87,9 @@ def resolve(src, cookies, max_h=1080, cookies_from_browser=None):
     lines = r.stdout.split()
     urls = [u for u in lines if u.startswith("http")]
     if not urls:
-        raise RuntimeError("yt-dlp gave no URL: " + r.stderr.strip()[-300:])
+        # its ERROR line says why; the help text yt-dlp appends would push the reason out of a plain tail
+        err = [x for x in r.stderr.splitlines() if x.startswith("ERROR:")]
+        raise RuntimeError("yt-dlp gave no URL: " + (err[-1] if err else r.stderr.strip()[-300:])[:300])
     return urls[0], "True" in lines
 
 

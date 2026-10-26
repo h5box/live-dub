@@ -1,4 +1,6 @@
 import json
+import time
+from typing import Any
 
 import pytest
 
@@ -79,3 +81,44 @@ def test_prioritize_ignores_processed_position(run):
     current.prioritize(0.060111)   # the first frame's time, a few microseconds before the range's start
 
     assert not (run / "priority.json").exists()
+
+
+def ingest_log(d, *lines):
+    (d / "ingest.log").write_text("".join(f"[18:00:0{i}] {x}\n" for i, x in enumerate(lines)), encoding="utf-8")
+
+
+def test_source_error_explains_known_yt_dlp_failures(run):
+    assert session.source_error(run) is None   # no ingest log yet
+    cases = {"Sign in to confirm you’re not a bot. Use --cookies-from-browser": "YouTube 要求登录验证",
+             "Could not copy Chrome cookie database. See  https://github.com/yt-dlp/yt-dlp/issues/7271": "浏览器正在运行",
+             "Failed to decrypt with DPAPI. See  https://github.com/yt-dlp/yt-dlp/issues/10927": "无法解密",
+             "[youtube] abc: Video unavailable": "无法读取这个链接：[youtube] abc: Video unavailable。每 10 秒"}
+    for why, want in cases.items():
+        ingest_log(run, f"resolve failed: yt-dlp gave no URL: ERROR: {why}")
+        assert want in (session.source_error(run) or "")
+
+
+def test_source_error_clears_once_the_stream_opens(run):
+    ingest_log(run, "resolve failed: timed out", "HLS variant 1080p 5000 kb/s", "run 1: chunk 0, PT offset 0.000")
+    assert session.source_error(run) is None
+    ingest_log(run, "run 1: chunk 0, PT offset 0.000", "run 1 ended rc=1", "resolve failed: timed out")
+    assert "timed out" in (session.source_error(run) or "")
+
+
+def test_source_error_keeps_the_known_cause_when_messages_alternate(run):
+    # what the real link gave behind the bot check: the two messages take turns
+    ingest_log(run, "resolve failed: yt-dlp gave no URL: ERROR: [youtube] x: Sign in to confirm you’re not a bot.",
+               "resolve failed: yt-dlp gave no URL: ERROR: [youtube] x: Requested format is not available.")
+    assert "YouTube 要求登录验证" in (session.source_error(run) or "")
+
+
+def test_source_error_goes_into_the_log_once(run):
+    no_services: Any = None   # health() never asks the services
+    current = session.Session(no_services)
+    current.dir, current.info = run, {"name": run.name, "state": "running", "started": time.time(), "log": []}
+    ingest_log(run, "resolve failed: yt-dlp gave no URL: ERROR: [youtube] x: Sign in to confirm you’re not a bot.")
+    health = [current.health() for _ in range(3)][-1]   # the backend polls every 2 s
+    assert "YouTube 要求登录验证" in health["source_error"]
+    assert [m for _, m in current.info["log"]] == [health["source_error"]]
+    ingest_log(run, "run 1: chunk 0, PT offset 0.000")
+    assert current.health()["source_error"] is None

@@ -14,6 +14,7 @@ Scenarios:
   fresh     no session yet, every service down, a GPU warning, the environment check of this machine as it is
   starting  services coming up; turns live after 6 s
   failed    the last start failed
+  blocked   running, but the link cannot be opened (YouTube's sign-in check): no picture, the reason on the player
 开始 in the UI starts a new session (new name) that replays the run from its first frame; 停止 ends it.
 """
 import argparse
@@ -47,7 +48,7 @@ def newest_run() -> Path:
 
 ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 ap.add_argument("--run", type=Path)
-ap.add_argument("--scenario", default="live", choices=("live", "ended", "fresh", "starting", "failed"))
+ap.add_argument("--scenario", default="live", choices=("live", "ended", "fresh", "starting", "failed", "blocked"))
 ap.add_argument("--offset", type=float, default=600, help="live: seconds into the run")
 ap.add_argument("--media", default="ts", choices=("ts", "fmp4"))
 ap.add_argument("--port", type=int, default=8099)
@@ -163,7 +164,7 @@ def segments() -> list[tuple[str, float, float]]:
 
 def playlist() -> str:
     """real.playlist()'s format over the test picture, cut at what has 'arrived' by now (live) or complete"""
-    if S["scenario"] in ("fresh", "failed", "starting"):
+    if S["scenario"] in ("fresh", "failed", "starting", "blocked"):
         return ""
     edge = P0 + (vclock() - T0) if S["scenario"] == "live" else float("inf")   # PT that has reached us by now
     segs = [s for s in segments() if s[2] <= edge]
@@ -218,6 +219,11 @@ def session():
         info.update(state="failed", ended=c + 152, log=[[c + 2, "启动识别服务（约 30 秒）"],
                                                         [c + 152, "启动失败：识别服务无法启动，请查看日志 logs/asr.log"]])
         info.pop("started", None)
+    elif s == "blocked":
+        info.update(state="running", kind="link", src="https://www.youtube.com/watch?v=QB5BNdBFujE", created=now - 40,
+                    started=now - 30, log=[[now - 30, "已开始：点播在首段字幕就绪后播放，直播按设定延时播放"],
+                                           [now - 28, BLOCKED]])
+        info.pop("ended", None)
     return info
 
 
@@ -246,10 +252,16 @@ def services():
     return out
 
 
+BLOCKED = real.RESOLVE_HINTS[0][1]   # what the backend says behind YouTube's bot check
+
+
 def health():
     s = S["scenario"]
     if s == "ended":
         return {"running": {}, "mem_mb": {}, "anchor": ANCHOR, "playout": {}}
+    if s == "blocked":
+        return {"running": {"ingest": True, "processor": True}, "mem_mb": {}, "anchor": None, "playout": {},
+                "source_error": BLOCKED}
     if s != "live":
         return {}
     return {"running": {"ingest": True, "processor": True}, "mem_mb": {"ingest": 26, "processor": 84},

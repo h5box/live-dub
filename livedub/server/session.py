@@ -118,6 +118,46 @@ def playout_line(d: Path) -> dict:
     return {}
 
 
+# what yt-dlp says when a link cannot be opened -> what to do about it (docs/安装.md 常见问题 has the cookies steps);
+# a settings.json change takes effect after a backend restart, a closed browser on ingest's next attempt
+RESOLVE_HINTS = (
+    (r"not a bot|Sign in to confirm|LOGIN_REQUIRED",
+     "YouTube 要求登录验证，无法读取这个链接。请在 settings.json 中填写 youtube.cookies（导出的 cookies.txt）"
+     "或 youtube.cookies_from_browser，重启后端后重新开始；做法见安装说明的「常见问题」"),
+    (r"Could not copy \w+ cookie database",
+     "无法读取浏览器的 Cookie：浏览器正在运行，Cookie 文件被占用。请完全退出该浏览器（包括后台进程），之后会自动重试；"
+     "也可改用导出的 cookies.txt（youtube.cookies）"),
+    (r"Failed to decrypt with DPAPI",
+     "无法解密浏览器保存的 Cookie，这个浏览器的加密方式不支持直接读取。请用浏览器扩展导出 cookies.txt，"
+     "填到 settings.json 的 youtube.cookies，重启后端后重新开始"),
+)
+
+
+def source_error(d: Path) -> str | None:
+    """Why ingest cannot open the source, in words for the UI, or None. Only the attempts since ffmpeg last got the
+    stream (a "run N" line) count, so a link that failed once and then opened reads as fine. A known cause among them
+    wins over the latest message: behind YouTube's bot check yt-dlp alternates with "Requested format is not
+    available", and the hint should not flip every attempt."""
+    p = d / "ingest.log"
+    try:
+        with open(p, "rb") as f:
+            f.seek(max(0, p.stat().st_size - 8192))
+            tail = f.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return None
+    reasons = []
+    for line in tail:
+        if re.search(r"\] run \d+: chunk", line):
+            reasons = []
+        m = re.search(r"resolve failed: (?:yt-dlp gave no URL: )?(?:ERROR: )?(.*)", line)
+        if m:
+            reasons.append(m[1])
+    if not reasons:
+        return None
+    hint = next((h for pat, h in RESOLVE_HINTS if any(re.search(pat, r) for r in reasons)), None)
+    return hint or f"无法读取这个链接：{reasons[-1][:200]}。每 10 秒自动重试一次，可点「停止」结束本场"
+
+
 def read_anchor(d: Path) -> dict | None:
     """{"T0", "p0", "delay"}: written by the playout at its first frame; PT p airs at T0 + delay + (p - p0)."""
     try:
@@ -288,6 +328,7 @@ class Session:
         self.info: dict | None = None   # contents of run.json for the current / last session
         self.dir: Path | None = None
         self.task: asyncio.Task | None = None
+        self.source_errors: set[str] = set()   # written to the log since the source last opened: each goes in once
         self.reattach()
 
     # ---- persistence --------------------------------------------------------------------------------------
@@ -375,6 +416,7 @@ class Session:
                      "obs_url": OBS_URL if cfg["obs"] else None, "mt_model": cfg["mt_model"],
                      "media": f"/api/sessions/{name}/media/index.m3u8",
                      "state": "starting", "created": time.time(), "log": []}
+        self.source_errors.clear()
         self._save()
         self.task = asyncio.create_task(self._start(cfg))
         return self.info
@@ -548,6 +590,13 @@ class Session:
                 pass
         if "is_live" in source:
             self.info["is_live"] = source["is_live"]
+        why = source_error(self.dir) if self.active else None
+        if why and why not in self.source_errors:
+            self.step(why)
+            self.source_errors.add(why)
+        elif not why:
+            self.source_errors.clear()
         return {"name": self.info.get("name"), "running": running, "mem_mb": mem, "anchor": read_anchor(self.dir),
-                "progress": progress, "playout": playout_line(self.dir) if self.info.get("obs", True) else {}}
+                "progress": progress, "playout": playout_line(self.dir) if self.info.get("obs", True) else {},
+                "source_error": why}
 

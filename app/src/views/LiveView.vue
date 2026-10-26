@@ -133,7 +133,7 @@ onUnmounted(() => unlisten?.());
     <div class="body">
       <div class="main">
         <Player :media="media" :session="s?.name ?? null" :rows="rows" :anchor="anchor" :running="underway" :dub-on="dubOn"
-                :is-live="realtime" :processed="live.status?.health?.progress?.ranges">
+                :is-live="realtime" :processed="live.status?.health?.progress?.ranges" :source-error="live.status?.health?.source_error">
           <template #idle>
             <div class="idlehint">
               <template v-if="s?.state === 'starting'">

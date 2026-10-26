@@ -33,6 +33,7 @@ export interface Health {
   progress?: { ranges?: [number, number][]; position?: number; done?: boolean };
   running?: Record<string, boolean>; mem_mb?: Record<string, number>;
   playout?: Partial<Playout>; anchor?: Anchor | null;
+  source_error?: string | null;   // why the link cannot be opened (e.g. YouTube asks to sign in), while it is so
 }
 
 export interface Status {
