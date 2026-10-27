@@ -65,3 +65,42 @@ def test_live_link_gives_up_on_a_sign_in_it_does_not_have(tmp_path, monkeypatch)
     # what the real link gave: the bot check takes turns with a format error, which alone would be retried
     fmt = "yt-dlp gave no URL: ERROR: [youtube] x: Requested format is not available."
     assert run_live(tmp_path, monkeypatch, [bot, fmt]) == ("2", 2 * ingest.GIVE_UP - 1)
+
+
+MASTER = """#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="234",NAME="Default",DEFAULT=YES,URI="audio.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=2447970,RESOLUTION=1280x720,AUDIO="234"
+v720.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=4561186,RESOLUTION=1920x1080,AUDIO="234"
+v1080.m3u8
+"""
+
+
+def serve(monkeypatch, text):
+    class Reply:
+        def read(self):
+            return text.encode()
+    monkeypatch.setattr(ingest.urllib.request, "urlopen", lambda *a, **k: Reply())
+
+
+def test_variant_with_audio_apart_keeps_the_master(monkeypatch):
+    serve(monkeypatch, MASTER)
+    # streamlink takes the master and muxes the audio rendition in; whether it is live is in the video's playlist
+    assert ingest.best_variant("http://x/live/master.m3u8", 720) == ("http://x/live/master.m3u8", "http://x/live/v720.m3u8")
+    serve(monkeypatch, MASTER.replace(',URI="audio.m3u8"', ""))   # audio in the variants themselves
+    assert ingest.best_variant("http://x/live/master.m3u8") == ("http://x/live/v1080.m3u8",) * 2
+    serve(monkeypatch, "#EXTM3U\n#EXTINF:2.0,\nseg0.ts\n")   # a media playlist
+    assert ingest.best_variant("http://x/live/index.m3u8") == ("http://x/live/index.m3u8",) * 2
+
+
+def test_youtube_stream_with_audio_apart_resolves_to_its_master(monkeypatch):
+    # yt-dlp's output for the issue's link without a sign-in: only video-only and audio-only HLS formats
+    out = ("True\nhttps://manifest.googlevideo.com/api/manifest/hls_playlist/itag/270/index.m3u8\n"
+           "https://manifest.googlevideo.com/api/manifest/hls_playlist/itag/234/index.m3u8\n"
+           "master=https://manifest.googlevideo.com/api/manifest/hls_variant/id/x/file/index.m3u8\n")
+    monkeypatch.setattr(ingest.subprocess, "run", lambda *a, **k: ingest.subprocess.CompletedProcess([], 0, out, ""))
+    assert ingest.resolve("https://www.youtube.com/watch?v=QB5BNdBFujE", None) == (
+        "https://manifest.googlevideo.com/api/manifest/hls_variant/id/x/file/index.m3u8", True)
+    out = "True\nhttps://manifest.googlevideo.com/api/manifest/hls_playlist/itag/96/index.m3u8\nmaster=NA\n"
+    assert ingest.resolve("https://www.youtube.com/watch?v=QB5BNdBFujE", None) == (
+        "https://manifest.googlevideo.com/api/manifest/hls_playlist/itag/96/index.m3u8", True)

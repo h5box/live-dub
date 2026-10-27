@@ -3,7 +3,8 @@
 PT is what every other part keys on (subtitle and dub events, the playout clock), so it must only ever move forward.
 - File source ("fake live"): -re paces it like a broadcast and -copyts keeps the file's own timestamps as PT, so
   bench tools can compare against the file.
-- Live source (--live; an http(s) media URL, or a page that yt-dlp resolves to its HLS manifest): no -copyts,
+- Live source (--live; an http(s) media URL, or a page that yt-dlp resolves to its HLS manifest; where video and
+  audio come as separate HLS renditions, the master playlist, which streamlink fetches and muxes): no -copyts,
   so ffmpeg starts PT near 0 and folds the source's timestamp jumps (discontinuities, encoder restarts) into a
   continuous timeline. When ffmpeg exits (network, expired manifest) it is restarted after a short pause; the new
   run's PT is offset to continue from the last chunk's end plus the wall time lost, and chunk numbering continues.
@@ -48,19 +49,25 @@ GIVE_UP = 3   # ~30 s of tries; behind the bot check yt-dlp alternates with "Req
 
 
 def best_variant(url, max_h=1080):
-    """An HLS master playlist -> its highest-bandwidth variant of at most max_h lines; a media playlist passes through."""
+    """An HLS master playlist -> (what to fetch, the video's media playlist): its highest-bandwidth variant of at most
+    max_h lines, or the master itself when that variant's audio is a separate rendition (EXT-X-MEDIA with a URI: no
+    variant carries both, streamlink fetches the two and muxes them). A media playlist passes through."""
     text = urllib.request.urlopen(url, timeout=15).read().decode("utf-8", "replace")
     best, lines = None, text.splitlines()
+    apart = {m[1] for l in lines if l.startswith("#EXT-X-MEDIA:") and "TYPE=AUDIO" in l and "URI=" in l
+             for m in [re.search(r'GROUP-ID="([^"]*)"', l)] if m}
     for i, line in enumerate(lines):
         if line.startswith("#EXT-X-STREAM-INF"):
             bw = int((re.search(r"BANDWIDTH=(\d+)", line) or [0, 0])[1])
             h = int((re.search(r"RESOLUTION=\d+x(\d+)", line) or [0, 0])[1])
+            audio = (re.search(r'AUDIO="([^"]*)"', line) or [0, None])[1]
             nxt = next((l for l in lines[i + 1:] if l and not l.startswith("#")), None)
             if nxt and h <= max_h and (best is None or (h, bw) > best[:2]):
-                best = (h, bw, urllib.parse.urljoin(url, nxt))
-    if best:
-        print(f"HLS variant {best[0]}p {best[1] // 1000} kb/s", flush=True)
-    return best[2] if best else url
+                best = (h, bw, urllib.parse.urljoin(url, nxt), audio in apart)
+    if not best:
+        return url, url
+    print(f"HLS variant {best[0]}p {best[1] // 1000} kb/s" + (", audio apart" if best[3] else ""), flush=True)
+    return (url if best[3] else best[2]), best[2]
 
 
 def yt_dlp_argv(cookies=None, cookies_from_browser=None):
@@ -82,19 +89,27 @@ def resolve(src, cookies, max_h=1080, cookies_from_browser=None):
     if not src.startswith("http"):
         return src, False
     if src.split("?")[0].endswith(".m3u8"):
-        url = best_variant(src, max_h)
+        url, media = best_variant(src, max_h)
         try:
-            vod = "#EXT-X-ENDLIST" in urllib.request.urlopen(url, timeout=15).read().decode("utf-8", "replace")
+            vod = "#EXT-X-ENDLIST" in urllib.request.urlopen(media, timeout=15).read().decode("utf-8", "replace")
         except Exception:
             vod = False
         return url, not vod
     if src.split("?")[0].endswith((".ts", ".flv", ".mp4", ".mkv", ".webm", ".mov")):
         return src, False
+    # a stream with video and audio in one first; some YouTube live streams have them only apart (in HLS): then the
+    # master playlist they both come from, for streamlink to mux
     cmd = yt_dlp_argv(cookies, cookies_from_browser) + [
-        "--print", "is_live", "--print", "urls", "-f", f"best[height<={max_h}][protocol*=m3u8]/best[height<={max_h}]/best"]
+        "--print", "is_live", "--print", "urls", "--print", "master=%(requested_formats.0.manifest_url)s",
+        "-f", f"best[height<={max_h}][protocol*=m3u8]/best[height<={max_h}]/best/"
+              f"bestvideo[height<={max_h}][protocol*=m3u8]+bestaudio[protocol*=m3u8]"]
     r = subprocess.run(cmd + [src], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     lines = r.stdout.split()
     urls = [u for u in lines if u.startswith("http")]
+    master = next((x[7:] for x in lines if x.startswith("master=http")), None)
+    if len(urls) > 1 and master:
+        print("video and audio come apart: fetching both through the HLS master", flush=True)
+        return master, "True" in lines
     if not urls:
         # its ERROR line says why; the help text yt-dlp appends would push the reason out of a plain tail
         err = [x for x in r.stderr.splitlines() if x.startswith("ERROR:")]
@@ -290,16 +305,20 @@ def main():
                 break
             lost_at = lost_at or time.time(); time.sleep(10); continue
         stuck = 0
-        hls = url.startswith("http") and (".m3u8" in url or "hls_playlist" in url)
+        hls = url.startswith("http") and (".m3u8" in url or "hls_playlist" in url or "hls_variant" in url)
         sl = None
         if hls and a.fetcher == "streamlink":
             # ffmpeg's HLS reader fetches segments one after another: one stalled request (seen on YouTube through a
             # proxy: TLS keepalive resets, ~10 s to first byte) puts it behind the 30 s playlist window and the
             # segments it missed are skipped. streamlink fetches ahead in parallel and retries; ffmpeg just cuts.
+            # Given a master playlist, it takes the best variant up to --max-height and muxes in a separate audio
+            # rendition with ffmpeg (into MPEG-TS, as one variant would come).
             sl = subprocess.Popen(settings.python_argv("streamlink") + ["--loglevel", "warning", "--stream-segment-threads", "3",
                                    "--stream-segment-attempts", "5", "--stream-segment-timeout", "8",
                                    "--hls-live-edge", "3", "--hls-playlist-reload-attempts", "5",
-                                   "-O", "hls://" + url, "best"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                   "--stream-sorting-excludes", f">{a.max_height}p", "--ffmpeg-ffmpeg", FFMPEG,
+                                   "-O", "hls://" + url, "best,worst-unfiltered"],   # every variant above it: the smallest
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             threading.Thread(target=stamp, args=(sl.stderr, "streamlink"), daemon=True).start()
             cmd = list(base)
         elif url.startswith("http"):
