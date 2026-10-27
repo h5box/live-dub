@@ -51,3 +51,36 @@ def test_services_cannot_be_stopped_during_a_session(services, monkeypatch):
         call("asr", "stop")
     assert e.value.status_code == 409
     assert call("asr", "start") == {"ok": True}
+
+
+@pytest.fixture
+def settings_file(tmp_path, monkeypatch):
+    f = tmp_path / "settings.json"
+    monkeypatch.setenv("LIVEDUB_SETTINGS", str(f))
+    app.settings.reload()
+    yield f
+    monkeypatch.delenv("LIVEDUB_SETTINGS")
+    app.settings.reload()
+
+
+def youtube(**body):
+    return asyncio.run(app.youtube_set(app.YoutubeReq(**body)))
+
+
+def test_youtube_sign_in_is_saved_and_checked(settings_file, tmp_path):
+    cookies = tmp_path / "cookies.txt"
+    cookies.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    assert youtube(cookies=f'"{cookies}"') == {"cookies": str(cookies), "cookies_from_browser": "", "cookies_found": True}
+    assert app.settings.get()["youtube"]["cookies"] == str(cookies)   # the next session reads it without a restart
+    assert youtube(cookies_from_browser=" Firefox:work ")["cookies_from_browser"] == "Firefox:work"   # a profile too
+    assert app.settings.get()["youtube"] == {"cookies": "", "cookies_from_browser": "Firefox:work"}
+    assert "ports" not in settings_file.read_text(encoding="utf-8")   # only what was set goes into the file
+
+
+@pytest.mark.parametrize("body, why", [({"cookies": "missing/cookies.txt"}, "找不到 cookies 文件"),
+                                       ({"cookies_from_browser": "netscape:firefox"}, "不支持从这个浏览器读取")])
+def test_youtube_sign_in_rejects_what_yt_dlp_cannot_use(settings_file, body, why):
+    with pytest.raises(HTTPException) as e:
+        youtube(**body)
+    assert e.value.status_code == 400 and why in e.value.detail
+    assert not settings_file.exists()

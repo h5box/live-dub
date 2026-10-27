@@ -290,6 +290,9 @@ PROVIDERS = {"deepseek": {"name": "deepseek", "label": "DeepSeek", "base_url": "
                         "has_key": False, "key_url": "", "problem": "未填写 API key"}}
 
 
+YOUTUBE = {"cookies": "", "cookies_from_browser": "", "cookies_found": False}   # kept here: settings.json stays as is
+
+
 def log_tail(name):
     lines = [f"[{time.strftime('%H:%M:%S')}] (mock) {name} log line {i}" for i in range(8)]
     return {f: "\n".join(lines) for f in real_svc.info()[name]["logs"]}
@@ -347,6 +350,8 @@ class H(BaseHTTPRequestHandler):
             return self._json(doctor())
         if p == "/api/settings/online":
             return self._json(list(PROVIDERS.values()))
+        if p == "/api/settings/youtube":
+            return self._json(YOUTUBE)
         m = re.fullmatch(r"/api/sessions/([\w.-]+)/media/(index\.m3u8|[\w.-]+)", p)
         if m:
             if m[2] == "index.m3u8":
@@ -388,6 +393,12 @@ class H(BaseHTTPRequestHandler):
             v["has_key"] = v["has_key"] or bool(body.get("api_key"))
             v["problem"] = None if v["has_key"] and v["base_url"] else "未填写 API key"
             return self._json(list(PROVIDERS.values()))
+        if p == "/api/settings/youtube":
+            f = (body.get("cookies") or "").strip().strip('"')
+            if f and not Path(f).is_file():
+                return self._json({"detail": f"找不到 cookies 文件：{f}"}, 400)
+            YOUTUBE.update(cookies=f, cookies_from_browser=body.get("cookies_from_browser") or "", cookies_found=bool(f))
+            return self._json(YOUTUBE)
         m = re.fullmatch(r"/api/settings/online/(\w+)/test", p)
         if m:
             return self._json({"ok": True, "reply": "你好", "wall_s": 0.42})

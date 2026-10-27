@@ -1,13 +1,14 @@
 <script setup lang="ts">
 // The environment page: what this machine still lacks (the backend's environment check, with the command that fixes
-// each gap), the resident services (start / stop, where they run, their logs), the online translation keys, the GPU.
+// each gap), the resident services (start / stop, where they run, their logs), the online translation keys, the
+// YouTube sign-in, the GPU.
 import { computed, onMounted, reactive, ref } from "vue";
 import Banner from "../components/Banner.vue";
 import GpuMeter from "../components/GpuMeter.vue";
 import Icon from "../components/Icon.vue";
 import SvcState from "../components/SvcState.vue";
 import { api, BASE } from "../api/client";
-import type { DoctorItem, Provider, SvcName } from "../api/types";
+import type { DoctorItem, Provider, SvcName, YoutubeAuth } from "../api/types";
 import { ICON, ORDER } from "../lib/serviceInfo";
 import { active, checkEnv, focusPreset, live, reloadModels, serviceAction, services } from "../stores/live";
 
@@ -74,15 +75,41 @@ async function testProvider(p: Provider) {
   } catch (err) { test[p.name] = (err as Error).message; } finally { saving.value = ""; }
 }
 
-onMounted(() => { checkEnv(); loadProviders(); });
+// ---- YouTube sign-in -------------------------------------------------------------------------------------------
+const BROWSERS: Record<string, string> = { firefox: "Firefox", edge: "Edge", chrome: "Chrome", brave: "Brave",
+  chromium: "Chromium", opera: "Opera", vivaldi: "Vivaldi" };   // the backend also takes a profile, e.g. firefox:work
+const yt = ref<YoutubeAuth | null>(null);
+const ytMode = ref("");   // "" none, "file" a cookies.txt, else a browser
+const ytFile = ref("");
+const ytMsg = ref("");
+const ytSaving = ref(false);
+function showYoutube(a: YoutubeAuth) {
+  yt.value = a;
+  ytMode.value = a.cookies ? "file" : a.cookies_from_browser;
+  ytFile.value = a.cookies;
+}
+async function loadYoutube() {
+  try { showYoutube(await api.youtube()); } catch { /* not connected */ }
+}
+async function saveYoutube() {
+  ytSaving.value = true;
+  ytMsg.value = "";
+  try {
+    const file = ytMode.value === "file";
+    showYoutube(await api.saveYoutube({ cookies: file ? ytFile.value : "", cookies_from_browser: file ? "" : ytMode.value }));
+    ytMsg.value = "已保存，下一场开始时生效";
+  } catch (err) { ytMsg.value = (err as Error).message; } finally { ytSaving.value = false; }
+}
+
+onMounted(() => { checkEnv(); loadProviders(); loadYoutube(); });
 </script>
 
 <template>
   <div class="view">
     <header class="ph">
       <h1>环境</h1>
-      <p>查看本机缺少的组件、各服务的状态和日志，以及线上翻译的设置。开始观看时会自动启动识别和本地翻译
-        （开启「输出到 OBS」时还会启动 MediaMTX）；配音服务启动约需 1.5–3 分钟，建议提前启动。观看进行中不能停止服务。</p>
+      <p>查看本机缺少的组件、各服务的状态和日志，以及线上翻译和 YouTube 登录的设置。开始观看时会自动启动识别和本地翻译（开启「输出到 OBS」时还会启动
+        MediaMTX）；配音服务启动约需 1.5–3 分钟，建议提前启动。观看进行中不能停止服务。</p>
     </header>
     <Banner v-if="live.error" tone="critical" dismissible @dismiss="live.error = ''">{{ live.error }}</Banner>
 
@@ -196,6 +223,36 @@ onMounted(() => { checkEnv(); loadProviders(); });
       </article>
 
       <article class="card svc">
+        <header class="card-h">
+          <span class="si"><Icon name="link" :size="16" /></span><h2>YouTube 登录</h2>
+          <span v-if="yt && (yt.cookies || yt.cookies_from_browser)" class="chip" :class="yt.cookies && !yt.cookies_found ? 'warning' : 'good'">
+            <Icon :name="yt.cookies && !yt.cookies_found ? 'alert' : 'check'" :size="12" />{{ yt.cookies && !yt.cookies_found ? "找不到 cookies 文件" : "已设置" }}</span>
+        </header>
+        <div class="card-b">
+          <p class="what">YouTube 提示需要登录验证时使用：读取链接时带上你在浏览器中的登录状态。这里只保存文件路径或浏览器名称，Cookie
+            只在本机使用，不会上传。</p>
+          <div class="prov">
+            <label class="field"><span>方式</span>
+              <select v-model="ytMode" class="select">
+                <option value="">不使用</option>
+                <option value="file">导出的 cookies.txt</option>
+                <option v-for="(label, b) in BROWSERS" :key="b" :value="b">从 {{ label }} 读取</option>
+                <option v-if="yt?.cookies_from_browser && !(yt.cookies_from_browser in BROWSERS)"
+                        :value="yt.cookies_from_browser">从 {{ yt.cookies_from_browser }} 读取</option>
+              </select></label>
+            <label v-if="ytMode === 'file'" class="field"><span>文件路径</span>
+              <input v-model="ytFile" class="input" spellcheck="false" placeholder="例如 D:\Downloads\cookies.txt" /></label>
+            <p v-else-if="ytMode" class="hint">需先在该浏览器中登录 YouTube。Edge、Chrome 运行时 Cookie 文件被占用，新版还可能无法解密，建议用 Firefox
+              或导出的 cookies.txt。</p>
+            <div class="acts">
+              <button class="btn sm primary" :disabled="ytSaving || (ytMode === 'file' && !ytFile.trim())" @click="saveYoutube">保存</button>
+              <span class="muted tres">{{ ytMsg }}</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card svc">
         <header class="card-h"><span class="si"><Icon name="chip" :size="16" /></span><h2>显卡</h2></header>
         <div class="card-b">
           <p v-if="live.status?.gpu?.name" class="what">{{ live.status.gpu.name }}</p>
@@ -280,6 +337,9 @@ dd { margin: 0; color: var(--ink-1); min-width: 0; overflow-wrap: anywhere; }
 .ph2 a { font-size: 12px; margin-left: auto; }
 .prov .field { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); }
 .prov .input { height: 30px; font-size: 12.5px; }
+/* the global .select is 36px tall; its arrow moves up with it */
+.prov .select { height: 30px; font-size: 12.5px; background-position: calc(100% - 15px) 12px, calc(100% - 10px) 12px; }
+.hint { font-size: 12px; line-height: 1.6; color: var(--ink-3); }
 .acts { display: flex; align-items: center; gap: 8px; }
 .tres { font-size: 12px; overflow-wrap: anywhere; }
 </style>

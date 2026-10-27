@@ -1,5 +1,5 @@
 import type { DoctorReport, MtModel, Preset, Provider, Session, SessionDetail, SessionSummary, StartOpts, Status,
-  SvcInfo, SvcName, SetupStatus } from "./types";
+  SvcInfo, SvcName, SetupStatus, YoutubeAuth } from "./types";
 
 // the backend always listens on 127.0.0.1:8090 and also serves the built UI there, so a browser can open it too
 // (same origin, no base); VITE_API points the dev server elsewhere, e.g. at app/dev/mock_server.py
@@ -45,6 +45,9 @@ export const api = {
   providers: () => call<Provider[]>("GET", "/api/settings/online"),
   saveProvider: (p: { provider: string; base_url?: string; model?: string; api_key?: string }) =>
     call<Provider[]>("POST", "/api/settings/online", p),
+  youtube: () => call<YoutubeAuth>("GET", "/api/settings/youtube"),
+  saveYoutube: (a: { cookies: string; cookies_from_browser: string }) =>
+    call<YoutubeAuth>("POST", "/api/settings/youtube", a),
   testProvider: (name: string) =>
     call<{ ok: boolean; reply?: string; wall_s?: number; error?: string }>("POST", `/api/settings/online/${name}/test`),
 };

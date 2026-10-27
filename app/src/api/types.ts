@@ -54,6 +54,9 @@ export interface DoctorReport {
   settings_file: string; settings_exists: boolean;
 }
 
+/** where yt-dlp gets the sign-in for YouTube's bot check (GET /api/settings/youtube); the cookies never come back */
+export interface YoutubeAuth { cookies: string; cookies_from_browser: string; cookies_found: boolean }
+
 /** an online translation API (GET /api/settings/online); the key itself never comes back */
 export interface Provider {
   name: string; label: string; base_url: string; model: string; has_key: boolean; key_url: string;

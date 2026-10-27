@@ -119,17 +119,17 @@ def playout_line(d: Path) -> dict:
 
 
 # what yt-dlp says when a link cannot be opened -> what to do about it (docs/安装.md 常见问题 has the cookies steps);
-# a settings.json change takes effect after a backend restart, a closed browser on ingest's next attempt
+# a new sign-in setting is used from the next session on, a closed browser on ingest's next attempt
 RESOLVE_HINTS = (
     (r"not a bot|Sign in to confirm|LOGIN_REQUIRED",
-     "YouTube 要求登录验证，无法读取这个链接。请在 settings.json 中填写 youtube.cookies（导出的 cookies.txt）"
-     "或 youtube.cookies_from_browser，重启后端后重新开始；做法见安装说明的「常见问题」"),
+     "YouTube 要求登录验证，无法读取这个链接。请在「环境」页的「YouTube 登录」中选择导出的 cookies.txt 或浏览器，"
+     "然后停止本场并重新开始"),
     (r"Could not copy \w+ cookie database",
      "无法读取浏览器的 Cookie：浏览器正在运行，Cookie 文件被占用。请完全退出该浏览器（包括后台进程），之后会自动重试；"
-     "也可改用导出的 cookies.txt（youtube.cookies）"),
+     "也可在「环境」页的「YouTube 登录」中改用导出的 cookies.txt"),
     (r"Failed to decrypt with DPAPI",
      "无法解密浏览器保存的 Cookie，这个浏览器的加密方式不支持直接读取。请用浏览器扩展导出 cookies.txt，"
-     "填到 settings.json 的 youtube.cookies，重启后端后重新开始"),
+     "在「环境」页的「YouTube 登录」中选择它，然后停止本场并重新开始"),
 )
 
 

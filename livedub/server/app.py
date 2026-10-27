@@ -180,6 +180,40 @@ async def online_set(req: OnlineReq):
     return _providers()
 
 
+# ---- YouTube sign-in ----------------------------------------------------------------------------------------
+BROWSERS = ("firefox", "edge", "chrome", "brave", "chromium", "opera", "vivaldi", "safari", "whale")   # as yt-dlp names them
+
+
+class YoutubeReq(BaseModel):
+    cookies: str = ""                # a cookies.txt exported from a browser (Netscape format)
+    cookies_from_browser: str = ""   # or BROWSER[+KEYRING][:PROFILE] as yt-dlp takes it; the file wins when both are set
+
+
+def _youtube() -> dict:
+    yt = settings.get()["youtube"]
+    f = yt.get("cookies") or ""
+    return {"cookies": f, "cookies_from_browser": yt.get("cookies_from_browser") or "",
+            "cookies_found": bool(f) and settings.path(f).is_file()}
+
+
+@app.get("/api/settings/youtube")
+async def youtube_get():
+    return _youtube()
+
+
+@app.post("/api/settings/youtube")
+async def youtube_set(req: YoutubeReq):
+    """Where yt-dlp gets the sign-in for sites that ask (YouTube's bot check), saved to settings.json and used from the
+    next session on. Only the file's path or the browser's name is stored; the cookies stay where they are."""
+    f, b = req.cookies.strip().strip('"'), req.cookies_from_browser.strip()
+    if f and not settings.path(f).is_file():
+        raise HTTPException(400, f"找不到 cookies 文件：{f}")
+    if b and b.replace("+", ":").split(":")[0].strip().lower() not in BROWSERS:
+        raise HTTPException(400, f"不支持从这个浏览器读取 Cookie：{b}")
+    settings.save({"youtube": {"cookies": f, "cookies_from_browser": b}})
+    return _youtube()
+
+
 @app.post("/api/settings/online/{name}/test")
 async def online_test(name: str):
     """One tiny request with the saved settings: says whether the key, address and model work."""
