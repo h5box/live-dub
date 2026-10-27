@@ -16,7 +16,7 @@ from pathlib import Path
 
 import psutil
 
-from .. import mt, mt_chat, settings
+from .. import ingest, mt, mt_chat, settings
 from ..settings import ROOT
 from . import procs
 from .services import Services
@@ -119,25 +119,26 @@ def playout_line(d: Path) -> dict:
 
 
 # what yt-dlp says when a link cannot be opened -> what to do about it (docs/安装.md 常见问题 has the cookies steps);
-# a new sign-in setting is used from the next session on, a closed browser on ingest's next attempt
+# a new sign-in setting is used from the next session on (ingest gives up on the first and the last; before any picture
+# came in the session fails with this as its reason, next to a retry button), a closed browser on ingest's next attempt
 RESOLVE_HINTS = (
-    (r"not a bot|Sign in to confirm|LOGIN_REQUIRED",
+    (ingest.SIGN_IN,
      "YouTube 要求登录验证，无法读取这个链接。请在「环境」页的「YouTube 登录」中选择导出的 cookies.txt 或浏览器，"
-     "然后停止本场并重新开始"),
+     "然后重试"),
     (r"Could not copy \w+ cookie database",
      "无法读取浏览器的 Cookie：浏览器正在运行，Cookie 文件被占用。请完全退出该浏览器（包括后台进程），之后会自动重试；"
      "也可在「环境」页的「YouTube 登录」中改用导出的 cookies.txt"),
-    (r"Failed to decrypt with DPAPI",
+    (ingest.NO_DECRYPT,
      "无法解密浏览器保存的 Cookie，这个浏览器的加密方式不支持直接读取。请用浏览器扩展导出 cookies.txt，"
-     "在「环境」页的「YouTube 登录」中选择它，然后停止本场并重新开始"),
+     "在「环境」页的「YouTube 登录」中选择它，然后重试"),
 )
 
 
 def source_error(d: Path) -> str | None:
     """Why ingest cannot open the source, in words for the UI, or None. Only the attempts since ffmpeg last got the
-    stream (a "run N" line) count, so a link that failed once and then opened reads as fine. A known cause among them
-    wins over the latest message: behind YouTube's bot check yt-dlp alternates with "Requested format is not
-    available", and the hint should not flip every attempt."""
+    stream (a "run N" line) count, so a link that failed once and then opened reads as fine. The latest known cause
+    among them wins over other messages after it: behind YouTube's bot check yt-dlp alternates with "Requested format
+    is not available", and the hint should not flip every attempt."""
     p = d / "ingest.log"
     try:
         with open(p, "rb") as f:
@@ -154,7 +155,7 @@ def source_error(d: Path) -> str | None:
             reasons.append(m[1])
     if not reasons:
         return None
-    hint = next((h for pat, h in RESOLVE_HINTS if any(re.search(pat, r) for r in reasons)), None)
+    hint = next((h for r in reversed(reasons) for pat, h in RESOLVE_HINTS if re.search(pat, r)), None)
     return hint or f"无法读取这个链接：{reasons[-1][:200]}。每 10 秒自动重试一次，可点「停止」结束本场"
 
 
@@ -570,6 +571,7 @@ class Session:
             return {}
         running = {}
         mem = {}
+        why = None
         if self.active:
             for role, ps in self._procs().items():
                 running[role] = bool(ps)
@@ -577,8 +579,25 @@ class Session:
                     mem[role] = int(sum(p.memory_info().rss for p in ps) / 2**20)
                 except psutil.NoSuchProcess:
                     pass
+            why = source_error(self.dir)
+            if why and why not in self.source_errors:
+                self.step(why)
+                self.source_errors.add(why)
+            elif not why:
+                self.source_errors.clear()
             grace = time.time() - (self.info.get("started") or time.time()) < 30   # uv takes a moment to spawn python
-            if self.info["state"] == "running" and not grace and not any(running.values()):
+            buf = self.dir / "buf"
+            if self.info["state"] == "running" and why and (buf / "END").exists() and not ingest.listed(buf):
+                # ingest gave up before the stream ever opened (ingest.STUCK): the processor would wait for chunks
+                # forever. Once some came in, it finishes them and exits, and the session ends as usual.
+                self._kill_all()
+                self.info["state"] = "failed"
+                self.info["ended"] = time.time()
+                if self.info["log"][-1][1] != why:   # the UI gives the last line as the reason
+                    self.step(why)
+                else:
+                    self._save()
+            elif self.info["state"] == "running" and not grace and not any(running.values()):
                 self.info["state"] = "ended"
                 self.info["ended"] = time.time()
                 self.step("所有进程已退出，本场结束")
@@ -590,12 +609,6 @@ class Session:
                 pass
         if "is_live" in source:
             self.info["is_live"] = source["is_live"]
-        why = source_error(self.dir) if self.active else None
-        if why and why not in self.source_errors:
-            self.step(why)
-            self.source_errors.add(why)
-        elif not why:
-            self.source_errors.clear()
         return {"name": self.info.get("name"), "running": running, "mem_mb": mem, "anchor": read_anchor(self.dir),
                 "progress": progress, "playout": playout_line(self.dir) if self.info.get("obs", True) else {},
                 "source_error": why}

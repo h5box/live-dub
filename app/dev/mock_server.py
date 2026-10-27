@@ -14,7 +14,8 @@ Scenarios:
   fresh     no session yet, every service down, a GPU warning, the environment check of this machine as it is
   starting  services coming up; turns live after 6 s
   failed    the last start failed
-  blocked   running, but the link cannot be opened (YouTube's sign-in check): no picture, the reason on the player
+  blocked   running, but the link cannot be opened (YouTube's sign-in check): no picture, the reason on the player;
+            fails after 20 s, as the backend does once ingest gives up
 开始 in the UI starts a new session (new name) that replays the run from its first frame; 停止 ends it.
 """
 import argparse
@@ -220,10 +221,12 @@ def session():
                                                         [c + 152, "启动失败：识别服务无法启动，请查看日志 logs/asr.log"]])
         info.pop("started", None)
     elif s == "blocked":
-        info.update(state="running", kind="link", src="https://www.youtube.com/watch?v=QB5BNdBFujE", created=now - 40,
-                    started=now - 30, log=[[now - 30, "已开始：点播在首段字幕就绪后播放，直播按设定延时播放"],
-                                           [now - 28, BLOCKED]])
+        t = S["t_start"]
+        info.update(state="running", kind="link", src="https://www.youtube.com/watch?v=QB5BNdBFujE", created=t - 10,
+                    started=t, log=[[t, "已开始：点播在首段字幕就绪后播放，直播按设定延时播放"], [t + 2, BLOCKED]])
         info.pop("ended", None)
+        if blocked_over():
+            info.update(state="failed", ended=t + 20)
     return info
 
 
@@ -255,11 +258,15 @@ def services():
 BLOCKED = real.RESOLVE_HINTS[0][1]   # what the backend says behind YouTube's bot check
 
 
+def blocked_over():
+    return S["scenario"] == "blocked" and time.time() - S["t_start"] > 20
+
+
 def health():
     s = S["scenario"]
     if s == "ended":
         return {"running": {}, "mem_mb": {}, "anchor": ANCHOR, "playout": {}}
-    if s == "blocked":
+    if s == "blocked" and not blocked_over():
         return {"running": {"ingest": True, "processor": True}, "mem_mb": {}, "anchor": None, "playout": {},
                 "source_error": BLOCKED}
     if s != "live":

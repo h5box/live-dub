@@ -122,3 +122,36 @@ def test_source_error_goes_into_the_log_once(run):
     assert [m for _, m in current.info["log"]] == [health["source_error"]]
     ingest_log(run, "run 1: chunk 0, PT offset 0.000")
     assert current.health()["source_error"] is None
+
+
+def test_source_error_follows_the_latest_known_cause(run):
+    # the issue's sequence: Edge open (its cookie file locked), then closed (cookies it keeps encrypted)
+    ingest_log(run, "resolve failed: yt-dlp gave no URL: ERROR: Could not copy Chrome cookie database.",
+               "resolve failed: yt-dlp gave no URL: ERROR: Failed to decrypt with DPAPI.")
+    assert "无法解密" in (session.source_error(run) or "")
+
+
+BOT = "resolve failed: yt-dlp gave no URL: ERROR: [youtube] x: Sign in to confirm you’re not a bot."
+
+
+@pytest.mark.parametrize("opened", [False, True])
+def test_session_fails_when_ingest_gives_up_before_any_picture(run, monkeypatch, opened):
+    no_services: Any = None
+    current = session.Session(no_services)
+    killed = []
+    monkeypatch.setattr(current, "_kill_all", lambda: killed.append(1) or 0)
+    current.dir, current.info = run, {"name": run.name, "state": "running", "started": time.time(), "log": []}
+    before = ["run 1: chunk 0, PT offset 0.000", "run 1 ended rc=1"] if opened else []
+    if opened:
+        (run / "buf" / "list.csv").write_text("seg_000000.ts,0,1.0\n", encoding="utf-8")
+    ingest_log(run, *before, BOT, BOT)
+    assert current.health()["source_error"] and current.info["state"] == "running"   # still trying
+    ingest_log(run, *before, BOT, BOT, BOT, "giving up: trying again will not get past this")
+    (run / "buf" / "END").write_text("2", encoding="utf-8")
+    current.health()
+    assert [m for _, m in current.info["log"]] == [session.RESOLVE_HINTS[0][1]]   # the reason, once, as the last line
+    if opened:   # the processor finishes what came in and exits by itself
+        assert current.info["state"] == "running" and not killed
+    else:        # nothing came in: the processor would wait forever; the UI offers to retry
+        assert current.info["state"] == "failed" and killed
+        assert json.loads((run / "run.json").read_text(encoding="utf-8"))["state"] == "failed"

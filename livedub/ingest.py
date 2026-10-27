@@ -7,7 +7,9 @@ PT is what every other part keys on (subtitle and dub events, the playout clock)
   so ffmpeg starts PT near 0 and folds the source's timestamp jumps (discontinuities, encoder restarts) into a
   continuous timeline. When ffmpeg exits (network, expired manifest) it is restarted after a short pause; the new
   run's PT is offset to continue from the last chunk's end plus the wall time lost, and chunk numbering continues.
-  The playout shows a slate over the gap. Every restart is logged.
+  The playout shows a slate over the gap. Every restart is logged. A link that cannot be opened is tried again every
+  10 s, except for what trying again cannot fix (STUCK: a sign-in the session does not have): after GIVE_UP of those
+  since the stream last opened, ingest stops.
 Chunks are cut at keyframes (stream copy), so their length follows the source GOP. A file whose codecs a browser
 cannot play from MPEG-TS (the app's player reads these chunks as HLS) is converted on the way: audio other than AAC/MP3
 (e.g. Opus) to AAC, video other than H.264 to H.264.
@@ -36,6 +38,13 @@ from pathlib import Path
 from . import settings
 
 FFMPEG, FFPROBE = settings.ffmpeg(), settings.ffprobe()
+
+# yt-dlp failures that come back on every attempt with the same settings: YouTube's bot check without a sign-in, and
+# cookies this browser keeps encrypted. A locked cookie file (the browser is open) or a network error is retried on.
+SIGN_IN = r"not a bot|Sign in to confirm|LOGIN_REQUIRED"
+NO_DECRYPT = r"Failed to decrypt with DPAPI"
+STUCK = f"{SIGN_IN}|{NO_DECRYPT}"
+GIVE_UP = 3   # ~30 s of tries; behind the bot check yt-dlp alternates with "Requested format is not available", ~1 min
 
 
 def best_variant(url, max_h=1080):
@@ -258,7 +267,7 @@ def main():
         return
 
     t_start, run, rc = time.time(), 0, 0
-    lost_at = None
+    lost_at, stuck = None, 0
     while True:
         left = a.t - (time.time() - t_start) if a.t else None
         if left is not None and left <= 1:
@@ -274,7 +283,13 @@ def main():
                 threading.Thread(target=gc_chunks, args=(buf, a.keep_s, stop_all), daemon=True).start()
         except Exception as ex:
             print(f"[{time.strftime('%H:%M:%S')}] resolve failed: {ex}", flush=True)
+            stuck += bool(re.search(STUCK, str(ex)))
+            if stuck >= GIVE_UP:
+                print(f"[{time.strftime('%H:%M:%S')}] giving up: trying again will not get past this", flush=True)
+                rc = 2
+                break
             lost_at = lost_at or time.time(); time.sleep(10); continue
+        stuck = 0
         hls = url.startswith("http") and (".m3u8" in url or "hls_playlist" in url)
         sl = None
         if hls and a.fetcher == "streamlink":
