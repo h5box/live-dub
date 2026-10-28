@@ -84,3 +84,9 @@ def test_youtube_sign_in_rejects_what_yt_dlp_cannot_use(settings_file, body, why
         youtube(**body)
     assert e.value.status_code == 400 and why in e.value.detail
     assert not settings_file.exists()
+
+
+def test_status_says_which_version_is_running(monkeypatch):
+    monkeypatch.setattr(app.services, "status", {"services": {}})
+    monkeypatch.setattr(app, "session", SimpleNamespace(info=None, active=False))
+    assert app.snapshot()["version"] == app.__version__

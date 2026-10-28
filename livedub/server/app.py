@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import doctor, mt_chat, settings, setup
+from .. import __version__, doctor, mt_chat, settings, setup
 from ..settings import ROOT
 from . import session as sess
 from .services import LABELS, Services, gpu_warnings, info as service_info, tail
@@ -59,7 +59,8 @@ def snapshot() -> dict:
     # health is polled every few seconds: right after a new start it still describes the previous run, whose
     # anchor would send the player to that run's schedule (the end of a file that was just opened)
     current = health if health.get("name") == (session.info or {}).get("name") else {}
-    st = {**services.status, "session": session.info, "health": current, "t": time.time()}
+    st = {**services.status, "session": session.info, "health": current, "t": time.time(),
+          "version": __version__}
     if session.active and services.status:   # during a session only what it uses matters (dubbing joins at its start)
         st["warnings"] = gpu_warnings(services.status.get("gpu", {}), services.status.get("services", {}),
                                       session.info.get("mt_model"), want_dub=False)

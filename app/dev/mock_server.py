@@ -17,6 +17,7 @@ Scenarios:
   blocked   running, but the link cannot be opened (YouTube's sign-in check): no picture, the reason on the player;
             fails after 20 s, as the backend does once ingest gives up
   upcoming  running, but the live stream has not started yet: no picture, the player says so as waiting
+--backend-version 0.2.0 (or "") plays a backend older than the window, as when one is left running across an update.
 开始 in the UI starts a new session (new name) that replays the run from its first frame; 停止 ends it.
 """
 import argparse
@@ -39,6 +40,7 @@ sys.path.insert(0, str(ROOT))
 from livedub.server import session as real   # noqa: E402  (configs, models, past runs, playlist: the real code)
 from livedub.server import services as real_svc   # noqa: E402
 from livedub import doctor as real_doctor   # noqa: E402
+import livedub   # noqa: E402
 
 
 def newest_run() -> Path:
@@ -55,6 +57,8 @@ ap.add_argument("--scenario", default="live",
 ap.add_argument("--offset", type=float, default=600, help="live: seconds into the run")
 ap.add_argument("--media", default="ts", choices=("ts", "fmp4"))
 ap.add_argument("--port", type=int, default=8099)
+ap.add_argument("--backend-version", default=livedub.__version__,
+                help='the version /api/status reports; "" leaves it out, as backends before it did')
 A = ap.parse_args()
 RUN_DIR = (A.run or newest_run()).resolve()
 
@@ -286,7 +290,7 @@ def status():
     gpu = {"name": "NVIDIA GeForce RTX 5060 Ti", "used_mb": used, "total_mb": 16311, "util": 37}
     svc = services()
     return {"services": svc, "gpu": gpu, "warnings": real_svc.gpu_warnings(gpu, svc), "session": session(),
-            "health": health(), "t": time.time()}
+            "health": health(), "t": time.time(), **({"version": A.backend_version} if A.backend_version else {})}
 
 
 def doctor():

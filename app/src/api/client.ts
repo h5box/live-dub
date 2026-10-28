@@ -6,6 +6,9 @@ import type { DoctorReport, MtModel, Preset, Provider, Session, SessionDetail, S
 const sameOrigin = location.protocol.startsWith("http") && location.port === "8090";
 export const BASE: string = import.meta.env.VITE_API ?? (sameOrigin ? "" : "http://127.0.0.1:8090");
 
+// FastAPI's own reply for a route it does not have: the backend on the port is older than this window
+const NO_ROUTE = new Set(["Not Found", "Method Not Allowed"]);
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   let r: Response;
   try {
@@ -18,7 +21,13 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     throw new Error("无法连接后端（127.0.0.1:8090）");
   }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((data as { detail?: string }).detail || `后端返回错误 ${r.status}`);
+  if (!r.ok) {
+    const detail = (data as { detail?: string }).detail;
+    if ((r.status === 404 || r.status === 405) && (!detail || NO_ROUTE.has(detail))) {
+      throw new Error("后端不支持这个操作，可能是旧版本，请重启后端后再试");
+    }
+    throw new Error(detail || `后端返回错误 ${r.status}`);
+  }
   return data as T;
 }
 

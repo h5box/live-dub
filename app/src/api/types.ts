@@ -41,6 +41,7 @@ export interface Status {
   services: Record<SvcName, Svc>;
   gpu: { name?: string; used_mb?: number; total_mb?: number; util?: number };
   warnings: string[]; session: Session | null; health: Health; t?: number;
+  version?: string;              // the backend's release (absent in 0.3.0 and before)
 }
 
 /** what a service is and where it runs on this machine (GET /api/services) */

@@ -7,6 +7,9 @@ import type { DoctorReport, MtModel, Preset, StartOpts, Status, SvcInfo, SvcName
 import { mergeEvents, mergeTiming, sortRows, type Row } from "../lib/rows";
 import { load, save } from "../lib/prefs";
 import { computeStats } from "../lib/stats";
+import { version as APP_VERSION } from "../../package.json";
+
+export { APP_VERSION };
 
 export const live = reactive({
   link: false,                    // SSE connected
@@ -41,6 +44,10 @@ export const player = reactive({
 // ---- derived --------------------------------------------------------------------------------------------
 export const session = computed(() => live.status?.session ?? null);
 export const services = computed(() => live.status?.services ?? null);
+/** the backend on the port is not this window's release (one left running from before an update): its version,
+ *  "" when it is too old to say; null when they match or nothing is connected */
+export const staleBackend = computed<string | null>(() =>
+  live.status && live.status.version !== APP_VERSION ? live.status.version ?? "" : null);
 export const active = computed(() => ["starting", "running", "stopping"].includes(session.value?.state ?? ""));
 export const onAir = computed(() => session.value?.state === "running");
 export const rows = computed(() => sortRows(rowMap.values()));

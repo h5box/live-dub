@@ -1,5 +1,6 @@
 """Environment check: what this machine has and lacks for each part (watching, ASR, translation, dubbing, OBS output),
-with the command that fixes each gap. The app's services page shows the same list (GET /api/doctor).
+with the command that fixes each gap (commands in `backticks`: the app shows them as code). The app's environment
+page shows the same list (GET /api/doctor).
 
 usage: python -m livedub.doctor        (exit code 1 when something required is missing)
 """
@@ -46,13 +47,13 @@ def checks() -> list[dict]:
     ff = _version([settings.ffmpeg(), "-version"])
     out.append(item(g, "ffmpeg", ff and _version([settings.ffprobe(), "-version"]),
                     (ff or "").replace("ffmpeg version ", "").split(" ")[0],
-                    "Windows：winget install Gyan.FFmpeg；Linux：sudo apt install ffmpeg（或在 settings.json 的 tools 中填写路径）"))
+                    "Windows：`winget install Gyan.FFmpeg`；Linux：`sudo apt install ffmpeg`（或在 settings.json 的 tools 中填写路径）"))
     for pkg in ("yt-dlp", "streamlink"):
         v = _pkg(pkg)
-        out.append(item(g, pkg, v, v or "", "在项目目录运行 uv sync"))
+        out.append(item(g, pkg, v, v or "", "在项目目录运行 `uv sync`"))
     js = settings.js_runtime()
     out.append(item("YouTube 播放", "JavaScript 运行时（Deno 或 Node.js）", js, js or "",
-                    "yt-dlp 处理 YouTube 的播放校验需要它：安装 Deno 或 Node.js（Windows：winget install DenoLand.Deno）", "optional"))
+                    "yt-dlp 处理 YouTube 的播放校验需要它：安装 Deno 或 Node.js（Windows：`winget install DenoLand.Deno`）", "optional"))
     yt = s["youtube"]
     if yt.get("cookies") or yt.get("cookies_from_browser"):
         ok = bool(yt.get("cookies_from_browser")) or settings.path(yt["cookies"]).exists()
@@ -77,7 +78,7 @@ def checks() -> list[dict]:
         missing, err = set(linux_missing(paths)), None
     except RuntimeError as e:
         missing, err = set(paths), str(e)
-    fix_side = ("先安装 WSL 2：在管理员 PowerShell 中运行 wsl --install，重启后按提示创建 Ubuntu" if WSL
+    fix_side = ("先安装 WSL 2：在管理员 PowerShell 中运行 `wsl --install`，重启后按提示创建 Ubuntu" if WSL
                 else "需要 bash")
     out.append(item("配音（可选）" if native else "识别", f"{side} 环境", err is None, "" if err else err,
                     fix_side, "optional" if native else "required"))
@@ -92,13 +93,13 @@ def checks() -> list[dict]:
                     a["model"] if asr_ok else "缺少：" + "、".join(
                         {"asr_py": "Python 环境", "asr_model": "Parakeet 模型", "asr_spk": "TitaNet 模型"}[k]
                         for k in ("asr_py", "asr_model", "asr_spk") if k in missing),
-                        f"在项目目录运行 {LINUX_RUN} scripts/linux/setup_asr.sh（约 6 GB，需十几分钟）"))
+                        f"在项目目录运行 `{LINUX_RUN} scripts/linux/setup_asr.sh`（约 6 GB，需十几分钟）"))
 
     # translation: a local model (llama-server + GGUF) or an online provider; one of them is enough
     g = "翻译"
     gp = _gpu()
     llama = settings.tool("llama_server")
-    out.append(item(g, "llama-server（本地翻译）", llama, llama or "", "运行 uv run python scripts/fetch.py llama", "optional"))
+    out.append(item(g, "llama-server（本地翻译）", llama, llama or "", "运行 `uv run python scripts/fetch.py llama`", "optional"))
     any_ready = False
     for key, m in mt.models().items():
         if m.get("api"):
@@ -111,7 +112,7 @@ def checks() -> list[dict]:
             ok = f.is_file()
             any_ready |= ok and bool(llama)
             out.append(item(g, f"本地模型：{m.get('label', key)}", ok, str(f) if ok else "",
-                            f"运行 uv run python scripts/fetch.py model {key}（约 {m.get('size_gb', '?')} GB）", "optional"))
+                            f"运行 `uv run python scripts/fetch.py model {key}`（约 {m.get('size_gb', '?')} GB）", "optional"))
     out.append(item(g, "至少一种翻译可用", any_ready, "",
                     "下载一个本地模型（需要 NVIDIA 显卡和约 5 GB 显存），或在「环境」页填写线上翻译的 API key"))
     out.append(item("显卡", "NVIDIA 显卡", gp, f"{gp['name']}，显存 {gp['total_mb'] / 1024:.0f} GB" if gp else "",
@@ -125,15 +126,15 @@ def checks() -> list[dict]:
     script = {"omni": "setup_dub.sh", "local": "setup_indextts.sh", "voxcpm": "setup_voxcpm.sh"}.get(d["backend"], "setup_dub.sh")
     out.append(item(g, f"配音环境（{d['backend']}）", dub_ok,
                     d["model"] if dub_ok else "缺少：" + "、".join(labels[k] for k in dub_keys if k in missing),
-                    f"在项目目录运行 {LINUX_RUN} scripts/linux/{script}（约 20 GB，需要 NVIDIA 显卡和约 {d['vram_gb']:g} GB 显存）",
+                    f"在项目目录运行 `{LINUX_RUN} scripts/linux/{script}`（约 20 GB，需要 NVIDIA 显卡和约 {d['vram_gb']:g} GB 显存）",
                     "optional"))
 
     g = "OBS 输出（可选）"
     mtx = settings.tool("mediamtx")
-    out.append(item(g, "MediaMTX", mtx, mtx or "", "运行 uv run python scripts/fetch.py mediamtx", "optional"))
+    out.append(item(g, "MediaMTX", mtx, mtx or "", "运行 `uv run python scripts/fetch.py mediamtx`", "optional"))
     fz = settings.font("zh_bold")
     out.append(item(g, "中文字体（用于烧录字幕）", fz, fz or "",
-                    "安装中文字体（Linux：sudo apt install fonts-noto-cjk），或在 settings.json 的 obs.font_zh 中填写字体路径",
+                    "安装中文字体（Linux：`sudo apt install fonts-noto-cjk`），或在 settings.json 的 obs.font_zh 中填写字体路径",
                     "optional"))
     return out
 
