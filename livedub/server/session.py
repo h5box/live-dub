@@ -16,7 +16,7 @@ from pathlib import Path
 
 import psutil
 
-from .. import ingest, mt, mt_chat, settings
+from .. import ingest, install, mt, mt_chat, settings
 from ..settings import ROOT
 from . import procs
 from .services import Services
@@ -64,10 +64,10 @@ def model_problem(key: str) -> str | None:
         return f"找不到翻译模型 {key}"
     if m.get("api"):
         return mt_chat.problem(m["api"], m.get("model", ""))
-    if not Path(mt.gguf_path(key)).is_file():
-        return f"模型文件尚未下载（运行 uv run python scripts/fetch.py model {key}）"
+    if not Path(mt.gguf_path(key) or "").is_file():
+        return "模型尚未下载"
     if not settings.tool("llama_server"):
-        return "尚未安装 llama-server（运行 uv run python scripts/fetch.py llama）"
+        return "尚未下载 llama-server（运行本地模型的程序）"
     return None
 
 
@@ -76,13 +76,20 @@ def list_models() -> list[dict]:
     out = []
     for key, m in mt.models().items():
         why = model_problem(key)
-        if m.get("api"):
-            name = mt_chat.provider(m["api"]).get("model") or m.get("model")
-            detail = f"线上，{name}" if name else "线上"
+        if m.get("api"):   # the model name the interface is set to
+            detail = mt_chat.provider(m["api"]).get("model") or m.get("model") or ""
         else:
-            detail = f"本地，约 {m['vram_gb']:g} GB 显存" if m.get("vram_gb") else "本地"
+            detail = f"约 {m['vram_gb']:g} GB 显存" if m.get("vram_gb") else ""
+        get, size = "", 0   # what makes a local model ready: its file (and llama-server with it), or llama-server
+        if why and not m.get("api"):
+            has_file, has_llama = install.gguf(key).is_file(), bool(settings.tool("llama_server"))
+            get = "llama" if has_file else f"model:{key}"
+            size = (0 if has_file else m.get("bytes") or 0) + (0 if has_llama else int(install.TOOL_SIZE["llama"]))
+            if not install.supported(get) or get not in install.catalog():
+                get, size = "", 0
         out.append({"key": key, "label": m.get("label", key), "detail": detail, "online": bool(m.get("api")),
-                    "ready": why is None, "note": why or "", "default": key == settings.get()["mt"]["default"]})
+                    "provider": m.get("api", ""), "ready": why is None, "note": why or "", "install": get,
+                    "size": size, "default": key == settings.get()["mt"]["default"]})
     return out
 
 

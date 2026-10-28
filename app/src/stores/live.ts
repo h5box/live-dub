@@ -3,7 +3,7 @@
 import { computed, reactive, watch } from "vue";
 import { api } from "../api/client";
 import { subscribe } from "../api/stream";
-import type { DoctorReport, MtModel, Preset, StartOpts, Status, SvcInfo, SvcName } from "../api/types";
+import type { DoctorReport, Downloadable, MtModel, Preset, StartOpts, Status, SvcInfo, SvcName } from "../api/types";
 import { mergeEvents, mergeTiming, sortRows, type Row } from "../lib/rows";
 import { load, save } from "../lib/prefs";
 import { computeStats } from "../lib/stats";
@@ -22,6 +22,7 @@ export const live = reactive({
   svcInfo: null as Record<SvcName, SvcInfo> | null,   // what each service is and where it runs here
   doctor: null as DoctorReport | null,                // the environment check
   checking: false,
+  downloadables: {} as Record<string, Downloadable>,  // what this machine can download (GET /api/downloads)
   name: null as string | null,    // the session the rows belong to
   busy: "",                       // the action in flight: start | stop | asr:start ...
   error: "",                      // the last failed action, until dismissed or the next action
@@ -44,6 +45,7 @@ export const player = reactive({
 // ---- derived --------------------------------------------------------------------------------------------
 export const session = computed(() => live.status?.session ?? null);
 export const services = computed(() => live.status?.services ?? null);
+export const downloads = computed(() => live.status?.downloads ?? {});
 /** the backend on the port is not this window's release (one left running from before an update): its version,
  *  "" when it is too old to say; null when they match or nothing is connected */
 export const staleBackend = computed<string | null>(() =>
@@ -53,8 +55,15 @@ export const onAir = computed(() => session.value?.state === "running");
 export const rows = computed(() => sortRows(rowMap.values()));
 export const sessionPreset = computed(() => live.presets.find((p) => p.name === session.value?.preset));
 export const formPreset = computed(() => live.presets.find((p) => p.name === form.preset));
-/** the preset that matters now: the running session's, else the one picked in the form */
-export const focusPreset = computed(() => (active.value ? sessionPreset.value : formPreset.value));
+/** the translation model the next session uses: the one picked (on the watch page or the environment page), else the
+ *  preset's, else settings mt.default */
+export const nextModel = computed(() =>
+  form.mt_model || formPreset.value?.mt_model || live.models.find((m) => m.default)?.key || "");
+/** the translation model that matters now: the running session's, else the next one's */
+export const focusModel = computed(() => {
+  const key = active.value ? session.value?.mt_model || sessionPreset.value?.mt_model : nextModel.value;
+  return live.models.find((m) => m.key === key) ?? null;
+});
 
 /** wall time at which PT 0 would air: air(pt) = base + pt. From the playout's anchor, else from any written row
  *  (written + slack is that row's air time). Undefined until the playout has its first frame. */
@@ -110,6 +119,7 @@ export function connect() {
         live.linkedOnce = true;
         if (!live.presets.length) loadPresets();
         if (!live.doctor) checkEnv();
+        api.downloadables().then((d) => { live.downloadables = d; }, () => {});
       }
     },
   });
@@ -155,6 +165,29 @@ export async function reloadModels() {
   try { live.models = await api.models(); } catch { /* keep the old list */ }
 }
 
+// ---- downloads ------------------------------------------------------------------------------------------
+/** queue a download (resume a paused one), or switch a running one to `source` */
+export async function download(key: string, source = "") {
+  try {
+    const d = await api.download(key, source);
+    if (live.status) live.status.downloads = d;
+  } catch (e) { live.error = (e as Error).message; }
+}
+export async function pauseDownload(key: string) {
+  try {
+    const d = await api.pauseDownload(key);
+    if (live.status) live.status.downloads = d;
+  } catch (e) { live.error = (e as Error).message; }
+}
+// a finished download changes what is ready: check again
+const doneSeen = new Set<string>();
+watch(downloads, (d) => {
+  const fresh = Object.entries(d).filter(([k, j]) => j.state === "done" && !doneSeen.has(k));
+  for (const [k] of fresh) doneSeen.add(k);
+  for (const [k, j] of Object.entries(d)) if (j.state !== "done") doneSeen.delete(k);
+  if (fresh.length) { checkEnv(); reloadModels(); }
+});
+
 async function run(label: string, f: () => Promise<unknown>) {
   live.busy = label;
   live.error = "";
@@ -171,4 +204,10 @@ async function run(label: string, f: () => Promise<unknown>) {
 export const startSession = (o: StartOpts) => run("start", () => api.start(o));
 export const stopSession = () => run("stop", () => api.stop());
 export const serviceAction = (name: SvcName, action: "start" | "stop" | "restart") =>
-  run(`${name}:${action}`, () => api.service(name, action));
+  run(`${name}:${action}`, () => api.service(name, action, name === "mt" ? { model: localModel() } : {}));
+/** what (re)starting the translation service loads: the next session's model when it is a local one, else the one
+ *  running (the backend falls back to settings mt.default) */
+function localModel(): string | undefined {
+  const m = live.models.find((x) => x.key === nextModel.value);
+  return m && !m.online ? m.key : services.value?.mt?.model ?? undefined;
+}

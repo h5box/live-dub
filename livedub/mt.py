@@ -10,15 +10,19 @@ import urllib.request
 from . import settings
 
 # Translation models; a preset's "mt_model" (or settings mt.default) picks one. Local ones are GGUF files served by
-# llama-server: scripts/fetch.py model <key> downloads "file" from Hugging Face "hf" into models/ (settings
-# mt.models.<key>.path points elsewhere). Online ones go through mt_chat.py with the provider's key in .secret/.
+# llama-server: livedub/install.py downloads "file" from Hugging Face "hf" or ModelScope "ms" into the download folder
+# (settings models_dir; mt.models.<key>.path points elsewhere) and checks it against "bytes" and "sha256". Online ones
+# go through mt_chat.py with the provider's key in .secret/.
 MODELS = {
     # bilibili Index-Translate-9B (Qwen3.5 base, Apache-2.0); replayed on a news channel it beat Hy-MT2-7B on ~17 of
     # 54 judged lines and lost ~7, but runs long -> shorten() below
-    "index-9b": {"file": "Index-Translate-9B.IQ4_XS.gguf", "hf": "IndexTeam/Index-Translate-9B-GGUF", "style": "index",
-                 "label": "Index-Translate-9B", "size_gb": 5.4, "vram_gb": 5.0},
-    "hy-mt2": {"file": "Hy-MT2-7B-Q4_K_M.gguf", "hf": "tencent/Hy-MT2-7B-GGUF", "style": "hymt",
-               "label": "Hy-MT2-7B", "size_gb": 4.6, "vram_gb": 4.9},
+    "index-9b": {"file": "Index-Translate-9B.IQ4_XS.gguf", "hf": "IndexTeam/Index-Translate-9B-GGUF",
+                 "ms": "IndexTeam/Index-Translate-9B-GGUF", "bytes": 5357874624,
+                 "sha256": "874e47a25f38c236be8ac5bec03aa9d47432a31036b60a00c8ca381750aaa619",
+                 "style": "index", "label": "Index-Translate-9B", "vram_gb": 5.0},
+    "hy-mt2": {"file": "Hy-MT2-7B-Q4_K_M.gguf", "hf": "tencent/Hy-MT2-7B-GGUF", "ms": "Tencent-Hunyuan/Hy-MT2-7B-GGUF",
+               "bytes": 4624648896, "sha256": "9f96256500f3fc1ab4d64336b58f52a949a95ad7516b0c229476eef782f9f77b",
+               "style": "hymt", "label": "Hy-MT2-7B", "vram_gb": 4.9},
     # online: one append-only conversation per run (the whole stream as context, prefix-cached)
     "deepseek-flash": {"api": "deepseek", "model": "deepseek-flash", "ctx": 1_000_000, "style": "chat",
                        "label": "DeepSeek"},

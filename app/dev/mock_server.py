@@ -18,7 +18,8 @@ Scenarios:
             fails after 20 s, as the backend does once ingest gives up
   upcoming  running, but the live stream has not started yet: no picture, the player says so as waiting
 --backend-version 0.2.0 (or "") plays a backend older than the window, as when one is left running across an update.
-开始 in the UI starts a new session (new name) that replays the run from its first frame; 停止 ends it.
+开始 in the UI starts a new session (new name) that replays the run from its first frame; 停止 ends it. Downloads
+fill at 9 MB/s, one at a time; POST /api/mock/downloads {key: job} sets them as they are (for screenshots).
 """
 import argparse
 import io
@@ -31,6 +32,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -40,6 +42,7 @@ sys.path.insert(0, str(ROOT))
 from livedub.server import session as real   # noqa: E402  (configs, models, past runs, playlist: the real code)
 from livedub.server import services as real_svc   # noqa: E402
 from livedub import doctor as real_doctor   # noqa: E402
+from livedub import install as real_install   # noqa: E402
 import livedub   # noqa: E402
 
 
@@ -285,12 +288,50 @@ def health():
             "anchor": {**ANCHOR, "T0": T0 + shift()}, "playout": {}}
 
 
+DL: dict[str, dict] = {}   # the downloads, as GET /api/status shows them, plus when each last moved (_t)
+DL_DIR = {"dir": "C:\\Users\\me\\AppData\\Local\\LiveDub\\models", "free": 412_000_000_000, "used": 0}
+
+
+def downloads():
+    now = time.time()
+    for k, j in DL.items():
+        if j["state"] == "running" and not j.get("_frozen"):
+            j["done"] = min(j["total"], j["done"] + 9e6 * (now - j["_t"]))
+            j["speed"] = 9e6
+            if j["done"] >= j["total"]:
+                j.update(state="done", speed=0)
+        j["_t"] = now
+    if not any(j["state"] == "running" for j in DL.values()):
+        nxt = next((j for j in DL.values() if j["state"] == "queued"), None)
+        if nxt:
+            nxt.update(state="running", _t=now)
+    return {k: {kk: v for kk, v in j.items() if not kk.startswith("_")} for k, j in DL.items()}
+
+
+def dl_start(key, source):
+    cat = real_install.catalog()
+    j = DL.get(key)
+    if j and j["state"] in ("queued", "running"):
+        if source:
+            j.update(source=source, auto=False)
+        return downloads()
+    it = cat[key]
+    if key.startswith("model:") and "llama" not in DL:
+        dl_start("llama", "")
+    srcs = [s["id"] for s in it["sources"]]
+    DL[key] = {"label": it["label"], "state": "queued", "done": j["done"] if j else 0, "total": it["size"] or 2e9,
+               "speed": 0, "source": source or (srcs[0] if srcs else ""), "auto": not source, "message": "",
+               "error": "", "pausable": bool(srcs), "_t": time.time()}
+    return downloads()
+
+
 def status():
     used = (9800 if S["scenario"] == "fresh" else 3075) + (6299 if S["up"]["dub"] else 0) + (4900 if S["up"]["mt"] else 0)
     gpu = {"name": "NVIDIA GeForce RTX 5060 Ti", "used_mb": used, "total_mb": 16311, "util": 37}
     svc = services()
     return {"services": svc, "gpu": gpu, "warnings": real_svc.gpu_warnings(gpu, svc), "session": session(),
-            "health": health(), "t": time.time(), **({"version": A.backend_version} if A.backend_version else {})}
+            "health": health(), "t": time.time(), **({"version": A.backend_version} if A.backend_version else {}),
+            "downloads": downloads(), "demo": "C:\\Program Files\\LiveDub\\_internal\\demo.mp4"}
 
 
 def doctor():
@@ -369,6 +410,10 @@ class H(BaseHTTPRequestHandler):
             return self._json(list(PROVIDERS.values()))
         if p == "/api/settings/youtube":
             return self._json(YOUTUBE)
+        if p == "/api/downloads":
+            return self._json(real_install.catalog())
+        if p == "/api/settings/downloads":
+            return self._json(DL_DIR)
         m = re.fullmatch(r"/api/sessions/([\w.-]+)/media/(index\.m3u8|[\w.-]+)", p)
         if m:
             if m[2] == "index.m3u8":
@@ -392,7 +437,27 @@ class H(BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         n = int(self.headers.get("Content-Length") or 0)
         body = json.loads(self.rfile.read(n) or b"{}")
-        parts = p.strip("/").split("/")
+        parts = [urllib.parse.unquote(x) for x in p.strip("/").split("/")]
+        if parts[:2] == ["api", "downloads"] and len(parts) == 3:
+            if parts[2] not in real_install.catalog():
+                return self._json({"detail": "没有这个下载项"}, 409)
+            return self._json(dl_start(parts[2], body.get("source") or ""))
+        if parts[:2] == ["api", "downloads"] and len(parts) == 4 and parts[3] == "pause":
+            j = DL.get(parts[2])
+            if j and j["state"] in ("queued", "running"):
+                j.update(state="paused", speed=0)
+            return self._json(downloads())
+        if p == "/api/mock/downloads":
+            DL.clear()
+            DL.update({k: {"speed": 0, "message": "", "error": "", "auto": True, "pausable": True, **v, "_t": time.time()}
+                       for k, v in body.items()})
+            return self._json(downloads())
+        if p == "/api/settings/downloads":
+            DL_DIR["dir"] = body.get("dir") or DL_DIR["dir"]
+            DL["move"] = {"label": "移动已下载的模型", "state": "running", "done": 0, "total": DL_DIR["used"] or 1,
+                          "speed": 0, "source": "", "auto": True, "message": "正在移动 encoder.int8.onnx…",
+                          "error": "", "pausable": False, "_t": time.time()}
+            return self._json(DL_DIR)
         if p == "/api/session/start":
             S.update(scenario="starting", t_start=time.time(), obs=bool(body.get("obs")),
                      name=time.strftime("%Y%m%d-%H%M%S") + "-" + (body.get("preset") or "default"))

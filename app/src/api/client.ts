@@ -1,5 +1,5 @@
 import type { DoctorReport, MtModel, Preset, Provider, Session, SessionDetail, SessionSummary, StartOpts, Status,
-  SvcInfo, SvcName, SetupStatus, YoutubeAuth } from "./types";
+  SvcInfo, SvcName, Download, Downloadable, DownloadDir, YoutubeAuth } from "./types";
 
 // the backend always listens on 127.0.0.1:8090 and also serves the built UI there, so a browser can open it too
 // (same origin, no base); VITE_API points the dev server elsewhere, e.g. at app/dev/mock_server.py
@@ -32,17 +32,21 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 }
 
 export const api = {
-  setupStatus: () => call<SetupStatus>("GET", "/api/setup"),
-  install: (component: "subtitles" | "youtube" | "dub", model_dir?: string) =>
-    call<SetupStatus>("POST", "/api/setup", { component, model_dir }),
+  downloadables: () => call<Record<string, Downloadable>>("GET", "/api/downloads"),
+  download: (key: string, source = "") =>
+    call<Record<string, Download>>("POST", `/api/downloads/${encodeURIComponent(key)}`, { source }),
+  pauseDownload: (key: string) =>
+    call<Record<string, Download>>("POST", `/api/downloads/${encodeURIComponent(key)}/pause`),
+  downloadDir: () => call<DownloadDir>("GET", "/api/settings/downloads"),
+  setDownloadDir: (dir: string) => call<DownloadDir>("POST", "/api/settings/downloads", { dir }),
   status: () => call<Status>("GET", "/api/status"),
   configs: () => call<Preset[]>("GET", "/api/configs"),
   sessions: () => call<SessionSummary[]>("GET", "/api/sessions"),
   session: (name: string) => call<SessionDetail>("GET", `/api/sessions/${encodeURIComponent(name)}`),
   deleteSession: (name: string, cacheOnly: boolean) =>
     call<{ ok: boolean }>("DELETE", `/api/sessions/${encodeURIComponent(name)}?cache_only=${cacheOnly}`),
-  service: (name: SvcName, action: "start" | "stop" | "restart") =>
-    call<{ ok: boolean }>("POST", `/api/services/${name}/${action}`, {}),
+  service: (name: SvcName, action: "start" | "stop" | "restart", body: { model?: string } = {}) =>
+    call<{ ok: boolean }>("POST", `/api/services/${name}/${action}`, body),
   models: () => call<MtModel[]>("GET", "/api/models"),
   start: (o: StartOpts) => call<Session>("POST", "/api/session/start", o),
   stop: () => call<Session>("POST", "/api/session/stop"),

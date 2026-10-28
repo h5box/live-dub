@@ -53,7 +53,7 @@ def problem(name: str, model: str = "") -> str | None:
     """Why this provider cannot be used yet, in words for the UI, or None."""
     p = provider(name)
     if not p.get("api_key"):
-        return "未填写 API key（在「环境」页的线上翻译中填写，或写入 .secret/%s.json）" % name
+        return "未填写 API key（在「环境」页的「翻译方式」中设置接口，或写入 .secret/%s.json）" % name
     if not p.get("base_url"):
         return "未填写接口地址（base_url）"
     if not (model or p.get("model")):

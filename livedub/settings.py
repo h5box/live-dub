@@ -29,7 +29,7 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # creationflags for hel
 DEFAULTS = {
     "runs_dir": "outputs/live",          # one directory per session
     "logs_dir": "logs",                  # service logs
-    "models_dir": "models",              # local translation models (GGUF)
+    "models_dir": "models",              # the download folder: translation models (GGUF), the native ASR model
     "keep_media_runs": 5,                # sessions that keep their video chunks (the rest keep subtitles only)
     "tools": {
         "ffmpeg": "",
@@ -50,7 +50,7 @@ DEFAULTS = {
     },
     "asr": {
         "backend": "onnx" if WINDOWS else "nemo",
-        "onnx_dir": "models/parakeet-onnx",
+        "onnx_dir": "",                  # "" = parakeet-onnx/ in models_dir
         "python": "{home}/venv-asr/bin/python",
         "model": "{home}/models/parakeet-tdt-0.6b-v2.nemo",
         "speaker_model": "{home}/models/titanet-large.nemo",
@@ -133,6 +133,12 @@ def path(p: str | os.PathLike) -> Path:
     """A setting's path: absolute as given (~ expanded), else relative to the project root."""
     p = Path(os.path.expanduser(str(p)))
     return p if p.is_absolute() else ROOT / p
+
+
+def asr_dir() -> Path:
+    """Where the native ASR model is: asr.onnx_dir, or parakeet-onnx/ in the download folder."""
+    d = get()["asr"]["onnx_dir"]
+    return path(d) if d else path(get()["models_dir"]) / "parakeet-onnx"
 
 
 def python_argv(module: str) -> list[str]:

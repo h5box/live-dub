@@ -3,19 +3,23 @@
 import { computed } from "vue";
 import type { SvcName } from "../api/types";
 import { ICON, ORDER } from "../lib/serviceInfo";
-import { active, focusPreset, live, serviceAction, services } from "../stores/live";
+import { active, focusModel, live, serviceAction, services } from "../stores/live";
 import Icon from "./Icon.vue";
 import SvcState from "./SvcState.vue";
 
 defineEmits<{ manage: [] }>();
 
-const online = computed(() => !!focusPreset.value?.mt_online);
+const online = computed(() => !!focusModel.value?.online);
+const label = (key?: string | null) => live.models.find((m) => m.key === key)?.label ?? key ?? "";
 function hint(n: SvcName): string {
   const s = services.value?.[n];
   if (!s) return "";
   if (n === "asr" && s.up) return s.boost?.length ? `热词 ${s.boost.length} 个` : "";
   if (n === "dub" && s.up) return [s.model, s.vram_mib ? `显存 ${(s.vram_mib / 1024).toFixed(1)} GB` : ""].filter(Boolean).join(" · ");
-  if (n === "mt" && s.up) return s.model ?? s.model_path ?? "";
+  if (n === "mt" && s.up) {   // a different model than the chosen one is swapped at the start
+    const now = s.model ? label(s.model) : s.model_path ?? "";
+    return focusModel.value && s.model !== focusModel.value.key ? `${now}，开始时换成 ${focusModel.value.label}` : now;
+  }
   if (s.state !== "down") return "";
   if (n === "dub") return "需要配音时请提前启动";
   if (n === "mediamtx") return "输出到 OBS 时自动启动";
@@ -29,9 +33,9 @@ const canStart = (n: SvcName) => !live.busy && services.value?.[n]?.state === "d
     <li v-for="n in ORDER" :key="n">
       <Icon :name="ICON[n]" :size="15" class="si" />
       <span class="nm">{{ services?.[n]?.label ?? n }}</span>
-      <template v-if="n === 'mt' && online && !services?.mt?.up">
+      <template v-if="n === 'mt' && online">
         <span class="st-online"><Icon name="link" :size="13" />线上</span>
-        <span class="hint">{{ focusPreset?.mt_model }}，不占用本机资源</span>
+        <span class="hint">{{ focusModel?.label }}，{{ services?.mt?.up ? "本地翻译服务未使用" : "不占用本机资源" }}</span>
       </template>
       <template v-else>
         <SvcState :svc="services?.[n]" />

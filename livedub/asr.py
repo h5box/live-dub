@@ -36,7 +36,7 @@ def words_from_tokens(tokens, timestamps, durations, audio_s):
 class Engine:
     def __init__(self):
         a = settings.get()["asr"]
-        d = settings.path(a["onnx_dir"])
+        d = settings.asr_dir()
         threads = max(1, min(int(a["threads"]), os.cpu_count() or 1))
         self.recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
             encoder=str(d / FILES[0]), decoder=str(d / FILES[1]), joiner=str(d / FILES[2]),

@@ -1,11 +1,12 @@
 """HTTP API for the desktop app (127.0.0.1 only): service status, start / stop and logs, the environment check,
-online translation settings, session start / stop, past sessions (the list, one session's records), a session's
+downloads and the download folder, online translation settings, session start / stop, past sessions (the list, one session's records), a session's
 picture for the app's player (HLS playlist + chunks) and its dub clips, and a Server-Sent Events stream with status
 every 2 s plus the session's subtitle and timing records as they are written. The built UI (app/dist) is served at /,
 so a browser can open it too."""
 import asyncio
 import json
 import os
+import shutil
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,7 +17,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import __version__, doctor, mt_chat, settings, setup
+from .. import __version__, doctor, install, mt_chat, settings
 from ..settings import ROOT
 from . import session as sess
 from .services import LABELS, Services, gpu_warnings, info as service_info, tail
@@ -60,7 +61,7 @@ def snapshot() -> dict:
     # anchor would send the player to that run's schedule (the end of a file that was just opened)
     current = health if health.get("name") == (session.info or {}).get("name") else {}
     st = {**services.status, "session": session.info, "health": current, "t": time.time(),
-          "version": __version__}
+          "version": __version__, "downloads": install.jobs(), "demo": DEMO}
     if session.active and services.status:   # during a session only what it uses matters (dubbing joins at its start)
         st["warnings"] = gpu_warnings(services.status.get("gpu", {}), services.status.get("services", {}),
                                       session.info.get("mt_model"), want_dub=False)
@@ -79,31 +80,78 @@ async def configs():
     return sess.list_configs()
 
 
-class SetupReq(BaseModel):
-    component: str = "subtitles"
-    model_dir: str | None = None
+DEMO = str(settings.RESOURCES / "demo.mp4") if (settings.RESOURCES / "demo.mp4").exists() else None   # a test video
 
 
-@app.get("/api/setup")
-async def setup_status():
-    demo = settings.RESOURCES / "demo.mp4"
-    return {**setup.report(), "model_dir": str(settings.path(settings.get()["asr"]["onnx_dir"])),
-            "demo": str(demo) if demo.exists() else None}
+@app.get("/api/downloads")
+async def downloads():
+    """What this machine can download: label, approximate size in bytes, sources. Progress is in the status."""
+    return install.catalog()
 
 
-@app.post("/api/setup")
-async def setup_start(req: SetupReq):
-    assert session is not None
-    if session.active:
-        raise HTTPException(409, "请先停止观看，再安装组件")
-    if services.status.get("services", {}).get("asr", {}).get("up") and req.component == "subtitles":
-        await services.stop("asr")
-        if not await services.wait_down("asr", 30):
-            raise HTTPException(409, "识别服务未停止，请稍后重试")
+class DownloadReq(BaseModel):
+    source: str = ""     # "" = the first source that answers
+
+
+@app.post("/api/downloads/{key}")
+async def download_start(key: str, req: DownloadReq):
+    """Queue a download (or resume a paused one); for one already running, switch it to `source`."""
     try:
-        return await setup.start(req.component, req.model_dir)
+        return install.start(key, req.source)
     except (RuntimeError, ValueError) as e:
         raise HTTPException(409, str(e))
+
+
+@app.post("/api/downloads/{key}/pause")
+async def download_pause(key: str):
+    return install.pause(key)
+
+
+def _download_dir() -> dict:
+    d = install.model_dir()
+    near = next(p for p in (d, *d.parents) if p.exists())
+    return {"dir": str(d), "free": shutil.disk_usage(near).free,
+            "used": sum(p.stat().st_size for p in install.downloaded())}
+
+
+@app.get("/api/settings/downloads")
+async def download_dir():
+    return _download_dir()
+
+
+class DirReq(BaseModel):
+    dir: str
+
+
+@app.post("/api/settings/downloads")
+async def download_dir_set(req: DirReq):
+    """A new download folder: the models downloaded so far move there (after the downloads under way)."""
+    assert session is not None
+    dest = Path(os.path.expanduser(req.dir.strip().strip('"')))
+    if not dest.is_absolute():
+        raise HTTPException(400, "请填写完整的文件夹路径，例如 D:\\LiveDub\\models")
+    if dest.exists() and dest.resolve() == install.model_dir().resolve():
+        return _download_dir()
+    if session.active:
+        raise HTTPException(409, "请先停止观看，再更改下载位置")
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise HTTPException(400, f"无法使用这个文件夹：{e}")
+    need = _download_dir()["used"]
+    if os.stat(dest).st_dev != os.stat(next(p for p in (install.model_dir(), *install.model_dir().parents)
+                                             if p.exists())).st_dev and need > shutil.disk_usage(dest).free:
+        raise HTTPException(400, f"新位置所在磁盘空间不足：已下载的模型共 {need / 1e9:.1f} GB")
+    for name in ("asr", "mt"):   # they keep the model files open
+        if services.status.get("services", {}).get(name, {}).get("up"):
+            await services.stop(name)
+            if not await services.wait_down(name, 30):
+                raise HTTPException(409, f"{LABELS.get(name, name)}未停止，请稍后重试")
+    try:
+        install.move(dest)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    return {**_download_dir(), "dir": str(dest)}
 
 
 @app.get("/api/models")

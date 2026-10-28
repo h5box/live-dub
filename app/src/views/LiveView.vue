@@ -3,6 +3,7 @@
 // on the right the subtitle list (click a line to play from it), the margin chart, and services / session log.
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Banner from "../components/Banner.vue";
+import MissingBanner from "../components/MissingBanner.vue";
 import GpuMeter from "../components/GpuMeter.vue";
 import Icon from "../components/Icon.vue";
 import Kpi from "../components/Kpi.vue";
@@ -122,10 +123,7 @@ onUnmounted(() => unlisten?.());
       <Banner v-if="!live.link" tone="critical">
         正在连接本机服务。长时间无法连接时，请重新打开程序或检查「环境」页。
       </Banner>
-      <Banner v-else-if="envMissing.length && !active" tone="warning">
-        本机缺少：{{ envMissing.join("、") }}。
-        <button class="btn sm" @click="$emit('navigate', 'services')">查看安装方法</button>
-      </Banner>
+      <MissingBanner v-else-if="envMissing.length && !active" @navigate="$emit('navigate', $event)" />
       <Banner v-for="w in live.status?.warnings ?? []" :key="w" tone="warning">{{ w }}</Banner>
       <Banner v-if="live.error" tone="critical" dismissible @dismiss="live.error = ''">{{ live.error }}</Banner>
     </div>

@@ -3,7 +3,7 @@
 // session's title, state and stop button while one does.
 import { computed, onUnmounted, ref } from "vue";
 import { hm } from "../lib/format";
-import { active, form, formPreset as preset, live, services, session, startSession, stopSession }
+import { active, form, formPreset as preset, live, nextModel as model, services, session, startSession, stopSession }
   from "../stores/live";
 import Icon from "./Icon.vue";
 import ObsCard from "./ObsCard.vue";
@@ -33,8 +33,8 @@ const step = (d: number) => { form.delay = Math.min(120, Math.max(10, Math.round
 const src = computed(() => form.src.trim());
 const kind = computed(() => (!src.value ? null : /^https?:\/\//i.test(src.value) ? "link" : "file"));
 const defaultModel = computed(() => preset.value?.mt_model || live.models.find((m) => m.default)?.key || "");
-const model = computed(() => form.mt_model || defaultModel.value);
 const modelInfo = computed(() => live.models.find((m) => m.key === model.value));
+const modelLabel = (key: string) => live.models.find((m) => m.key === key)?.label ?? key;
 const delayOk = computed(() => Number.isFinite(form.delay) && form.delay >= 10 && form.delay <= 120);
 const dubDown = computed(() => services.value?.dub?.state === "down");
 const canStart = computed(() => live.link && !!src.value && !!preset.value && !live.busy && delayOk.value &&
@@ -78,7 +78,7 @@ const STATE = { starting: "准备中", running: "翻译中", stopping: "停止�
             <span>{{ s.kind === "file" ? "本地视频" : "链接" }}</span><i>·</i>
             <span>延时 {{ s.delay_s }} 秒</span><i>·</i>
             <span>{{ s.dub ? "中文配音" : "仅字幕" }}</span>
-            <template v-if="s.mt_model"><i>·</i><span>翻译 {{ s.mt_model }}</span></template>
+            <template v-if="s.mt_model"><i>·</i><span>翻译 {{ modelLabel(s.mt_model) }}</span></template>
             <template v-if="s.started"><i>·</i><span>{{ hm(s.started) }} 开始</span></template>
           </template>
         </div>
@@ -106,7 +106,10 @@ const STATE = { starting: "准备中", running: "翻译中", stopping: "停止�
       <div class="row2">
         <label class="switch"><input v-model="form.dub" type="checkbox" />中文配音</label>
         <span>延时 {{ form.delay }} 秒</span>
+        <span v-if="modelInfo">翻译 {{ modelInfo.label }}（{{ modelInfo.online ? "线上" : "本地" }}）</span>
         <button class="btn sm" :aria-expanded="advanced" @click="advanced = !advanced">{{ advanced ? '收起高级选项' : '高级选项' }}</button>
+        <button v-if="!form.src.trim() && live.status?.demo" class="btn sm ghost demo" @click="form.src = live.status.demo">
+          <Icon name="film" :size="13" />没有视频？用内置的测试视频试一下</button>
       </div>
       <div v-if="advanced" class="row2">
         <label class="opt" title="场景预设包含场景说明、术语表和识别热词，影响翻译用词；内置预设在 configs/，自定义预设放在 configs/local/">场景
@@ -122,7 +125,7 @@ const STATE = { starting: "准备中", running: "翻译中", stopping: "停止�
           </div>秒
         </div>
         <label class="opt">翻译
-          <select v-model="form.mt_model" class="select" :title="modelInfo ? `${modelInfo.label}：${modelInfo.detail}` : ''">
+          <select v-model="form.mt_model" class="select" :title="modelInfo ? [modelInfo.label, modelInfo.detail].filter(Boolean).join('：') : ''">
             <option value="">默认（{{ live.models.find((m) => m.key === defaultModel)?.label ?? defaultModel }}）</option>
             <option v-for="m in live.models" :key="m.key" :value="m.key" :disabled="!m.ready" :title="m.note || m.detail">
               {{ m.label }} · {{ m.online ? "线上" : "本地" }}{{ m.ready ? "" : "（不可用）" }}</option>

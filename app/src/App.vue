@@ -7,20 +7,13 @@ import { APP_VERSION, connect, disconnect, staleBackend } from "./stores/live";
 import HistoryView from "./views/HistoryView.vue";
 import LiveView from "./views/LiveView.vue";
 import ServicesView from "./views/ServicesView.vue";
-import SetupView from "./views/SetupView.vue";
-import { live } from "./stores/live";
+import SettingsView from "./views/SettingsView.vue";
 
-const VIEWS = { live: LiveView, history: HistoryView, services: ServicesView, setup: SetupView };
+// what is missing shows on the watch page, with one button that downloads it
+const VIEWS = { live: LiveView, history: HistoryView, services: ServicesView, settings: SettingsView };
 const view = ref<View>(load<View>("view", "live"));
 if (!(view.value in VIEWS)) view.value = "live";
 watch(view, (v) => save("view", v));
-// an unfinished setup opens on the wizard once, at start; later checks (the environment page runs one when it
-// opens) must not pull the user back there
-const stopFirstCheck = watch(() => live.doctor, (report) => {
-  if (!report) return;
-  stopFirstCheck();
-  if (!report.ok && !load("setupDone", false)) view.value = "setup";
-});
 
 onMounted(connect);
 onUnmounted(disconnect);

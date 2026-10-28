@@ -212,7 +212,7 @@ class Services:
         a = settings.get()["asr"]
         if a["backend"] == "onnx":
             from ..asr import FILES
-            if any(not (settings.path(a["onnx_dir"]) / f).is_file() for f in FILES):
+            if any(not (settings.asr_dir() / f).is_file() for f in FILES):
                 raise RuntimeError("原生识别模型尚未安装，请在「设置向导」中下载")
             procs.spawn(settings.python_argv("livedub.asr") + ["--port", str(settings.port("asr"))], log_path("asr"), cwd=ROOT)
             return

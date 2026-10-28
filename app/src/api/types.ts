@@ -42,6 +42,8 @@ export interface Status {
   gpu: { name?: string; used_mb?: number; total_mb?: number; util?: number };
   warnings: string[]; session: Session | null; health: Health; t?: number;
   version?: string;              // the backend's release (absent in 0.3.0 and before)
+  downloads?: Record<string, Download>;   // the downloads of this backend run, by key (GET /api/downloads)
+  demo?: string | null;          // a test video that comes with the app
 }
 
 /** what a service is and where it runs on this machine (GET /api/services) */
@@ -50,7 +52,17 @@ export interface SvcInfo { what: string; where: string; port: string; boot: stri
 /** one line of the environment check (GET /api/doctor) */
 export interface DoctorItem {
   group: string; label: string; ok: boolean; detail: string; fix: string; level: "required" | "optional" | "info";
+  install?: string;    // the download that fixes it (a key of GET /api/downloads), "" when there is none here
 }
+/** one thing this machine can download: approximate size in bytes (0 = unknown), where from */
+export interface Downloadable { label: string; size: number; sources: { id: string; label: string }[] }
+export interface Download {
+  label: string; state: "queued" | "running" | "paused" | "done" | "failed";
+  done: number; total: number; speed: number;  // bytes, bytes, bytes/s
+  source: string; auto: boolean;               // where from; auto = goes on to the next source when one fails
+  message: string; error: string; pausable: boolean;
+}
+export interface DownloadDir { dir: string; free: number; used: number }
 export interface DoctorReport {
   items: DoctorItem[]; ok: boolean; missing_required: string[]; missing_optional: string[];
   settings_file: string; settings_exists: boolean;
@@ -73,13 +85,13 @@ export interface Preset {
 /** a translation model the backend knows (GET /api/models) */
 export interface MtModel {
   key: string; label: string; detail: string; online: boolean; ready: boolean; note: string; default: boolean;
+  provider?: string;   // an online model's interface (GET /api/settings/online); "" for a local one
+  install?: string;    // the download that makes a local model ready, "" when it is ready or cannot be downloaded
+  size?: number;       // what that download brings, in bytes (the model and llama-server, when both are missing)
 }
 
 export interface StartOpts { preset: string; src: string; delay: number; dub: boolean; obs: boolean; mt_model: string }
 
-export interface SetupStatus {
-  state: "idle" | "running" | "done" | "failed"; message: string; error: string; model_dir?: string; demo?: string | null;
-}
 
 export interface SessionSummary {
   name: string; title: string; state: SessionState; created: number; started?: number | null;

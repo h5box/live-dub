@@ -60,3 +60,8 @@ export function median(xs: number[]): number | null {
   const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
+
+/** a size in bytes: 5.4 GB, 110 MB */
+export function size(b: number): string {
+  return b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`;
+}
