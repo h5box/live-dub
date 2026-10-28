@@ -134,6 +134,20 @@ def test_source_error_follows_the_latest_known_cause(run):
 BOT = "resolve failed: yt-dlp gave no URL: ERROR: [youtube] x: Sign in to confirm you’re not a bot."
 
 
+def test_stream_not_started_reads_as_waiting(run):
+    no_services: Any = None
+    current = session.Session(no_services)
+    current.dir, current.info = run, {"name": run.name, "state": "running", "started": time.time(), "log": []}
+    # what the real link gave the day before a NASA spacewalk stream
+    ingest_log(run, "resolve failed: yt-dlp gave no URL: ERROR: [youtube] hv867HnY4j4: "
+                    "This live event will begin in 15 hours.")
+    health = current.health()
+    assert health["source_error"] == session.NOT_STARTED and health["source_waiting"]
+    assert current.info["state"] == "running"
+    ingest_log(run, BOT)   # anything else stays an error to act on
+    assert not current.health()["source_waiting"]
+
+
 @pytest.mark.parametrize("opened", [False, True])
 def test_session_fails_when_ingest_gives_up_before_any_picture(run, monkeypatch, opened):
     no_services: Any = None

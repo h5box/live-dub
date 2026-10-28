@@ -45,14 +45,15 @@ def test_resolve_failure_keeps_the_reason(monkeypatch):
         raise AssertionError("no URL should raise")
 
 
-def run_live(tmp_path, monkeypatch, errors):
-    """ingest's live loop against a link that never opens: resolve raises these in turn; -> (END, attempts)."""
+def run_live(tmp_path, monkeypatch, errors, slept=None):
+    """ingest's live loop against a link that never opens: resolve raises these in turn; -> (END, attempts).
+    slept gets each pause between attempts."""
     calls = []
     def resolve(*_):
         calls.append(1)
         raise RuntimeError(errors[(len(calls) - 1) % len(errors)])
     monkeypatch.setattr(ingest, "resolve", resolve)
-    monkeypatch.setattr(ingest.time, "sleep", lambda _: None)
+    monkeypatch.setattr(ingest.time, "sleep", lambda s: None if slept is None else slept.append(s))
     buf = tmp_path / "buf"
     monkeypatch.setattr("sys.argv", ["ingest", "https://www.youtube.com/watch?v=x", str(buf), "--live"])
     ingest.main()
@@ -65,6 +66,15 @@ def test_live_link_gives_up_on_a_sign_in_it_does_not_have(tmp_path, monkeypatch)
     # what the real link gave: the bot check takes turns with a format error, which alone would be retried
     fmt = "yt-dlp gave no URL: ERROR: [youtube] x: Requested format is not available."
     assert run_live(tmp_path, monkeypatch, [bot, fmt]) == ("2", 2 * ingest.GIVE_UP - 1)
+
+
+def test_stream_not_started_is_checked_less_often_and_never_given_up(tmp_path, monkeypatch):
+    soon = "yt-dlp gave no URL: ERROR: [youtube] x: This live event will begin in 15 hours."
+    bot = "yt-dlp gave no URL: ERROR: [youtube] x: Sign in to confirm you’re not a bot."
+    slept: list[float] = []
+    # only the bot check counts towards giving up; between tries, 30 s after the one, 10 s after the other
+    assert run_live(tmp_path, monkeypatch, [soon, bot], slept) == ("2", 2 * ingest.GIVE_UP)
+    assert [s for s in slept if s >= 1] == [30, 10] * (ingest.GIVE_UP - 1) + [30]   # (other waits poll at 0.1 s)
 
 
 MASTER = """#EXTM3U

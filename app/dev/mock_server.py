@@ -16,6 +16,7 @@ Scenarios:
   failed    the last start failed
   blocked   running, but the link cannot be opened (YouTube's sign-in check): no picture, the reason on the player;
             fails after 20 s, as the backend does once ingest gives up
+  upcoming  running, but the live stream has not started yet: no picture, the player says so as waiting
 开始 in the UI starts a new session (new name) that replays the run from its first frame; 停止 ends it.
 """
 import argparse
@@ -49,7 +50,8 @@ def newest_run() -> Path:
 
 ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
 ap.add_argument("--run", type=Path)
-ap.add_argument("--scenario", default="live", choices=("live", "ended", "fresh", "starting", "failed", "blocked"))
+ap.add_argument("--scenario", default="live",
+                choices=("live", "ended", "fresh", "starting", "failed", "blocked", "upcoming"))
 ap.add_argument("--offset", type=float, default=600, help="live: seconds into the run")
 ap.add_argument("--media", default="ts", choices=("ts", "fmp4"))
 ap.add_argument("--port", type=int, default=8099)
@@ -165,7 +167,7 @@ def segments() -> list[tuple[str, float, float]]:
 
 def playlist() -> str:
     """real.playlist()'s format over the test picture, cut at what has 'arrived' by now (live) or complete"""
-    if S["scenario"] in ("fresh", "failed", "starting", "blocked"):
+    if S["scenario"] in ("fresh", "failed", "starting", "blocked", "upcoming"):
         return ""
     edge = P0 + (vclock() - T0) if S["scenario"] == "live" else float("inf")   # PT that has reached us by now
     segs = [s for s in segments() if s[2] <= edge]
@@ -220,10 +222,11 @@ def session():
         info.update(state="failed", ended=c + 152, log=[[c + 2, "启动识别服务（约 30 秒）"],
                                                         [c + 152, "启动失败：识别服务无法启动，请查看日志 logs/asr.log"]])
         info.pop("started", None)
-    elif s == "blocked":
+    elif s in ("blocked", "upcoming"):
         t = S["t_start"]
         info.update(state="running", kind="link", src="https://www.youtube.com/watch?v=QB5BNdBFujE", created=t - 10,
-                    started=t, log=[[t, "已开始：点播在首段字幕就绪后播放，直播按设定延时播放"], [t + 2, BLOCKED]])
+                    started=t, log=[[t, "已开始：点播在首段字幕就绪后播放，直播按设定延时播放"],
+                                    [t + 2, BLOCKED if s == "blocked" else real.NOT_STARTED]])
         info.pop("ended", None)
         if blocked_over():
             info.update(state="failed", ended=t + 20)
@@ -269,6 +272,9 @@ def health():
     if s == "blocked" and not blocked_over():
         return {"running": {"ingest": True, "processor": True}, "mem_mb": {}, "anchor": None, "playout": {},
                 "source_error": BLOCKED}
+    if s == "upcoming":
+        return {"running": {"ingest": True, "processor": True}, "mem_mb": {}, "anchor": None, "playout": {},
+                "source_error": real.NOT_STARTED, "source_waiting": True}
     if s != "live":
         return {}
     return {"running": {"ingest": True, "processor": True}, "mem_mb": {"ingest": 26, "processor": 84},

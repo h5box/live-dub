@@ -118,6 +118,9 @@ def playout_line(d: Path) -> dict:
     return {}
 
 
+# a scheduled stream (or premiere) that has not started: ingest keeps checking every 30 s
+NOT_STARTED = "还没开播。开播后一分钟内会自动接上，无需重新开始；不想等可点「停止」结束本场"
+
 # what yt-dlp says when a link cannot be opened -> what to do about it (docs/安装.md 常见问题 has the cookies steps);
 # a new sign-in setting is used from the next session on (ingest gives up on the first and the last; before any picture
 # came in the session fails with this as its reason, next to a retry button), a closed browser on ingest's next attempt
@@ -131,6 +134,7 @@ RESOLVE_HINTS = (
     (ingest.NO_DECRYPT,
      "无法解密浏览器保存的 Cookie，这个浏览器的加密方式不支持直接读取。请用浏览器扩展导出 cookies.txt，"
      "在「环境」页的「YouTube 登录」中选择它，然后重试"),
+    (ingest.UPCOMING, NOT_STARTED),   # nothing is wrong: the player shows it as waiting (health's source_waiting)
 )
 
 
@@ -611,5 +615,5 @@ class Session:
             self.info["is_live"] = source["is_live"]
         return {"name": self.info.get("name"), "running": running, "mem_mb": mem, "anchor": read_anchor(self.dir),
                 "progress": progress, "playout": playout_line(self.dir) if self.info.get("obs", True) else {},
-                "source_error": why}
+                "source_error": why, "source_waiting": why == NOT_STARTED}
 

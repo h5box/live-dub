@@ -9,8 +9,9 @@ PT is what every other part keys on (subtitle and dub events, the playout clock)
   continuous timeline. When ffmpeg exits (network, expired manifest) it is restarted after a short pause; the new
   run's PT is offset to continue from the last chunk's end plus the wall time lost, and chunk numbering continues.
   The playout shows a slate over the gap. Every restart is logged. A link that cannot be opened is tried again every
-  10 s, except for what trying again cannot fix (STUCK: a sign-in the session does not have): after GIVE_UP of those
-  since the stream last opened, ingest stops.
+  10 s (a stream that has not started yet, UPCOMING: every 30 s, as that can go on for hours), except for what trying
+  again cannot fix (STUCK: a sign-in the session does not have): after GIVE_UP of those since the stream last opened,
+  ingest stops.
 Chunks are cut at keyframes (stream copy), so their length follows the source GOP. A file whose codecs a browser
 cannot play from MPEG-TS (the app's player reads these chunks as HLS) is converted on the way: audio other than AAC/MP3
 (e.g. Opus) to AAC, video other than H.264 to H.264.
@@ -46,6 +47,9 @@ SIGN_IN = r"not a bot|Sign in to confirm|LOGIN_REQUIRED"
 NO_DECRYPT = r"Failed to decrypt with DPAPI"
 STUCK = f"{SIGN_IN}|{NO_DECRYPT}"
 GIVE_UP = 3   # ~30 s of tries; behind the bot check yt-dlp alternates with "Requested format is not available", ~1 min
+# YouTube before a scheduled stream starts: "This live event will begin in 15 hours." (seen); premieres in the wording
+# YouTube is reported to use ("Premieres in 2 hours", "Premiere will begin shortly"; not seen here)
+UPCOMING = r"live event will begin|Premieres? in|Premiere will begin"
 
 
 def best_variant(url, max_h=1080):
@@ -303,7 +307,7 @@ def main():
                 print(f"[{time.strftime('%H:%M:%S')}] giving up: trying again will not get past this", flush=True)
                 rc = 2
                 break
-            lost_at = lost_at or time.time(); time.sleep(10); continue
+            lost_at = lost_at or time.time(); time.sleep(30 if re.search(UPCOMING, str(ex)) else 10); continue
         stuck = 0
         hls = url.startswith("http") and (".m3u8" in url or "hls_playlist" in url or "hls_variant" in url)
         sl = None

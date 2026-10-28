@@ -34,6 +34,7 @@ export interface Health {
   running?: Record<string, boolean>; mem_mb?: Record<string, number>;
   playout?: Partial<Playout>; anchor?: Anchor | null;
   source_error?: string | null;   // why the link cannot be opened (e.g. YouTube asks to sign in), while it is so
+  source_waiting?: boolean;       // ... only because the stream has not started yet: nothing to fix
 }
 
 export interface Status {
