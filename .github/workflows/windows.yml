@@ -30,11 +30,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
+          $installer = (Get-ChildItem app/src-tauri/target/release/bundle/nsis/*.exe).FullName
           gh release view $env:GITHUB_REF_NAME --json tagName
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:GITHUB_REF_NAME app/src-tauri/target/release/bundle/nsis/*.exe --clobber
+            gh release upload $env:GITHUB_REF_NAME $installer --clobber
           } else {
+            $version = $env:GITHUB_REF_NAME.TrimStart('v')
+            $title = "声影同传 $version"
             $releaseArgs = @()
-            if ($env:GITHUB_REF_NAME -match '^v0\.') { $releaseArgs += '--prerelease' }
-            gh release create $env:GITHUB_REF_NAME app/src-tauri/target/release/bundle/nsis/*.exe --title "声影同传 $env:GITHUB_REF_NAME" --generate-notes @releaseArgs
+            if ($version -match '^0\.') { $releaseArgs += '--prerelease'; $title += ' 预览版' }
+            # the notes written for this version if there are any, else GitHub's list of changes
+            $notes = ".github/release-notes/$env:GITHUB_REF_NAME.md"
+            if (Test-Path $notes) { $releaseArgs += '--notes-file', $notes } else { $releaseArgs += '--generate-notes' }
+            gh release create $env:GITHUB_REF_NAME $installer --title $title @releaseArgs
           }
