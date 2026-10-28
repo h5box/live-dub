@@ -213,7 +213,7 @@ class Services:
         if a["backend"] == "onnx":
             from ..asr import FILES
             if any(not (settings.asr_dir() / f).is_file() for f in FILES):
-                raise RuntimeError("原生识别模型尚未安装，请在「设置向导」中下载")
+                raise RuntimeError("识别模型尚未下载，请在「环境」页的「识别」中下载")
             procs.spawn(settings.python_argv("livedub.asr") + ["--port", str(settings.port("asr"))], log_path("asr"), cwd=ROOT)
             return
         self._linux_check({"识别的 Python 环境": a["python"], "Parakeet 模型": a["model"],
@@ -235,15 +235,15 @@ class Services:
     def start_mt(self, model_key: str):
         exe = settings.tool("llama_server")
         if not exe:
-            raise RuntimeError("找不到 llama-server：运行 uv run python scripts/fetch.py llama 下载，或在 settings.json 的 "
+            raise RuntimeError("找不到 llama-server：在「环境」页的「翻译」中下载，或在 settings.json 的 "
                                "tools.llama_server 中填写路径")
         gguf = mt.gguf_path(model_key)
         if not gguf or not Path(gguf).is_file():
-            raise RuntimeError(f"翻译模型文件不存在：{gguf}（运行 uv run python scripts/fetch.py model {model_key} 下载）")
+            raise RuntimeError(f"翻译模型文件不存在：{gguf}（请在「环境」页的「翻译」中下载）")
         env = {}
         tools = ROOT / "tools" / "llama.cpp"
         if not settings.WINDOWS and Path(exe).is_relative_to(tools):
-            # a release archive from scripts/fetch.py: the CUDA runtime libraries sit next to or below the binary
+            # a release archive from livedub.install: the CUDA runtime libraries sit next to or below the binary
             top = tools / Path(exe).relative_to(tools).parts[0]
             libs = sorted({str(f.parent) for f in top.rglob("*.so*")})
             env["LD_LIBRARY_PATH"] = ":".join(libs + [os.environ.get("LD_LIBRARY_PATH", "")]).strip(":")
@@ -292,7 +292,7 @@ class Services:
     def start_mediamtx(self):
         exe = settings.tool("mediamtx")
         if not exe:
-            raise RuntimeError("找不到 MediaMTX：运行 uv run python scripts/fetch.py mediamtx 下载，或在 settings.json 的 "
+            raise RuntimeError("找不到 MediaMTX：在「环境」页的「OBS 输出」中下载，或在 settings.json 的 "
                                "tools.mediamtx 中填写路径")
         TMP.mkdir(exist_ok=True)
         cfg = TMP / "mediamtx.yml"

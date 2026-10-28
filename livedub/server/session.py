@@ -295,11 +295,13 @@ def _drop_media(d: Path):
             shutil.rmtree(d / sub, ignore_errors=True)
 
 
-def prune_media(keep: int | None = None):
+def prune_media(keep: int | None = None, skip: str | None = None):
     """Only the newest `keep` runs hold their video chunks and dub clips (each is a copy of what was watched); the
-    others keep their subtitles and records."""
+    others keep their subtitles and records. `skip`, the run in progress, keeps them in any case."""
     keep = settings.get()["keep_media_runs"] if keep is None else keep
-    runs = sorted(d for d in RUNS.glob("*") if any((d / sub).is_dir() for sub in MEDIA))
+    runs = sorted(d for d in RUNS.glob("*") if d.name != skip and any((d / sub).is_dir() for sub in MEDIA))
+    if skip and (RUNS / skip).is_dir():
+        keep -= 1                        # it is one of the newest `keep`
     for d in runs[:-keep] if keep > 0 else runs:
         _drop_media(d)
 
@@ -455,7 +457,7 @@ class Session:
         name = time.strftime("%Y%m%d-%H%M%S") + "-" + (preset if preset != "default" else kind)
         self.dir = RUNS / name
         (self.dir / "clips").mkdir(parents=True, exist_ok=True)
-        await asyncio.to_thread(prune_media)           # counting this run
+        await asyncio.to_thread(prune_media, None, name)   # counting this run
         (self.dir / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
         self.info = {"name": name, "preset": preset, "title": title, "src": src, "kind": kind, "dir": str(self.dir),
                      "delay_s": cfg.get("delay_s", 30), "dub": cfg["dub"], "obs": cfg["obs"],

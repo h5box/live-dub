@@ -1,5 +1,5 @@
 ## 项目导航
-- fetch.py 下载既有模型工具；build_desktop.ps1 构建 Windows 安装程序。
+- build_desktop.ps1 构建 Windows 安装程序；模型和工具由 livedub/install.py 下载。
 ## 项目目录树
 ```text
 scripts/

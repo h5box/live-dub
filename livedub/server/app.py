@@ -194,15 +194,16 @@ class KeepReq(BaseModel):
 async def set_history(req: KeepReq):
     if not 1 <= req.keep <= 100:
         raise HTTPException(400, "保留的场数要在 1 到 100 之间")
+    assert session is not None
     settings.save({"keep_media_runs": req.keep})
-    await asyncio.to_thread(sess.prune_media, req.keep)
+    await asyncio.to_thread(sess.prune_media, req.keep, (session.info or {}).get("name") if session.active else None)
     return await asyncio.to_thread(_history)
 
 
 @app.post("/api/settings/history/clean")
 async def clean_history():
     assert session is not None
-    await asyncio.to_thread(sess.clean_media, session.info.get("name") if session.active else None)
+    await asyncio.to_thread(sess.clean_media, (session.info or {}).get("name") if session.active else None)
     return await asyncio.to_thread(_history)
 
 

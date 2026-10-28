@@ -1,7 +1,7 @@
 # 界面开发
 
 ## 项目导航
-- Vue 3 + TypeScript、Vite、Tauri 2；src/main.ts 入口，App.vue 组织四个页面。
+- Vue 3 + TypeScript、Vite、Tauri 2；src/main.ts 入口，App.vue 组织四个页面（观看、历史、环境、设置）。
 - 本目录执行 npx pnpm install / dev / build；构建包含 vue-tsc 类型检查。
 - 假后端 8099 配 VITE_API；具体启动命令见 README.md，无需模型或 GPU。
 
@@ -13,7 +13,7 @@ app/
 │   ├── api/              类型、HTTP、SSE
 │   ├── stores/           当前场次与历史状态
 │   ├── components/       播放器、字幕、图表、导航等组件
-│   ├── views/            观看、历史、环境、设置向导
+│   ├── views/            观看、历史、环境、设置
 │   ├── lib/              配音混音、统计、格式与偏好
 │   └── styles/           主题颜色与公共样式
 ├── src-tauri/            桌面外壳；icons/ 桌面图标，src/ Rust 入口
@@ -31,7 +31,8 @@ Vite → dist → 后端托管 / Tauri 窗口
 ## 项目文档
 - README.md：运行、开发、页面功能、PT 换算和 Logo 图标生成。
 - ../docs/接口.md：接口数据；../docs/原理.md：时间同步设计。
-- SetupView.vue：组件下载、翻译配置与首段视频测试；下载状态通过 /api/setup 查询。
+- 缺少的组件在「环境」页各卡片里下载（DownloadItem.vue，状态随 /api/status 的 downloads 推送）；观看页 MissingBanner.vue 一键全部下载。
+- SettingsView.vue：下载位置、观看记录、关闭窗口后的行为、外观。
 
 ## 项目约束
 - 配色集中在 styles/tokens.css，light-dark() 支持系统、浅色和深色主题。

@@ -17,7 +17,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: uv sync --locked --python 3.13
       - run: uv run --no-sync pytest -q
-      - run: uv run --no-sync pyright livedub/asr.py livedub/setup.py livedub/settings.py
+      - run: uv run --no-sync pyright livedub/asr.py livedub/install.py livedub/settings.py
       - run: choco install ffmpeg --no-progress -y
       - run: ./scripts/build_desktop.ps1
       - uses: actions/upload-artifact@v4

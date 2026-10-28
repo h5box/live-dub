@@ -50,6 +50,13 @@ def test_prune_keeps_media_of_newest_runs(run):
     assert all((run.parent / n / "buf" / "x").exists() for n in ("20261011-a", "20261012-b"))
 
 
+def test_prune_never_drops_the_run_in_progress(run):
+    _runs(run.parent, ["20261011-a", "zz-older-by-name"])
+    session.prune_media(1, skip=run.name)
+    assert (run / "buf").exists()
+    assert not any((run.parent / n / "buf").exists() for n in ("20261011-a", "zz-older-by-name"))
+
+
 def test_clean_media_spares_the_run_in_progress(run):
     _runs(run.parent, ["20261012-b"])
     session.clean_media(skip="20261012-b")

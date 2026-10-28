@@ -1,16 +1,16 @@
 ## 项目导航
-- 本机后端与处理链；原生字幕入口 asr.py，首次下载入口 setup.py。
+- 本机后端与处理链；原生字幕入口 asr.py，模型和工具下载 install.py。
 - 包装版由 scripts/desktop.py 调度 server、ingest、processor、asr 等模块。
 ## 项目目录树
 ```text
 livedub/
 ├── server/      HTTP、场次、服务和进程管理
 ├── asr.py       原生 CPU Parakeet/TitaNet；NeMo 入口在 ../svc/
-├── setup.py     首次组件安装与状态
+├── install.py   按组件下载模型和工具（多来源、断点续传、校验）
 └── settings.py  用户目录、资源目录、进程命令、模型工具路径
 ```
 ## 项目架构图
-- server → setup/服务管理 → ingest → processor → 字幕与配音；前端通过 HTTP/SSE 读取。
+- server → install/服务管理 → ingest → processor → 字幕与配音；前端通过 HTTP/SSE 读取。
 ## 项目文档
 - ../docs/接口.md、../docs/配置.md、../docs/原理.md。
 ## 项目约束

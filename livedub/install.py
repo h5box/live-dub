@@ -4,11 +4,13 @@ Deno (YouTube), MediaMTX (OBS output); and the Linux-side environments, which sc
 The app queues downloads (POST /api/downloads/<key>) and runs them one at a time; the status stream carries their
 progress ("downloads"). A file comes from the first of its sources that answers, or from the one the user picked; a
 break, a pause or a switch of source resumes from the partial file, and every file is checked against a SHA-256
-pinned here (models) or published by GitHub (tools) before it is used. Models go to the download folder (settings
+pinned here (models) or published by GitHub (tools) before it is used, so every source gives the same file. Tools
+come from GitHub, or from the mirror in settings github_mirror. Models go to the download folder (settings
 models_dir), tools to tools/.
 
 usage: uv run python -m livedub.install KEY [--source ID]
-       KEY: asr, llama, model:index-9b, ffmpeg, deno, mediamtx    ID: huggingface, modelscope, hf-mirror, github
+       KEY: asr, llama, model:index-9b, ffmpeg, deno, mediamtx
+       ID:  huggingface, modelscope, hf-mirror, github, github-mirror
 """
 import argparse
 import hashlib
@@ -34,7 +36,7 @@ LLAMA_TAG = "b11260"
 MEDIAMTX_TAG = "v1.21.1"
 UA = {"User-Agent": "live-dub"}
 SOURCES = {"huggingface": "Hugging Face", "modelscope": "魔搭 ModelScope（国内）", "hf-mirror": "hf-mirror 镜像（国内）",
-           "github": "GitHub"}
+           "github": "GitHub", "github-mirror": "GitHub 镜像"}
 HF = {"huggingface": "https://huggingface.co", "hf-mirror": "https://hf-mirror.com"}
 
 # the native ASR model, pinned (repo, revision, file there, file here, bytes, SHA-256): Parakeet TDT 0.6B v2 int8 ONNX
@@ -84,15 +86,18 @@ def model_sources(m: dict) -> list[str]:
             *(["hf-mirror"] if m.get("hf") else [])]
 
 
+def tool_sources() -> list[str]:
+    return ["github", *(["github-mirror"] if settings.get()["github_mirror"] else [])]
+
+
 def catalog() -> dict[str, dict]:
     """Every download this machine can do: label, approximate size in bytes, sources."""
     def entry(label, size, sources):
         return {"label": label, "size": int(size), "sources": [{"id": s, "label": SOURCES[s]} for s in sources]}
     out = {"asr": entry("识别模型", sum(f[4] for f in ASR_FILES), ["huggingface", "hf-mirror"]),
-           "llama": entry("llama-server", TOOL_SIZE["llama"], ["github"]),
-           "ffmpeg": entry("ffmpeg", TOOL_SIZE["ffmpeg"], ["github"]),
-           "deno": entry("Deno", TOOL_SIZE["deno"], ["github"]),
-           "mediamtx": entry("MediaMTX", TOOL_SIZE["mediamtx"], ["github"])}
+           **{k: entry(label, TOOL_SIZE[k], tool_sources())
+              for k, label in (("llama", "llama-server"), ("ffmpeg", "ffmpeg"), ("deno", "Deno"),
+                               ("mediamtx", "MediaMTX"))}}
     for key, m in mt.models().items():
         if not m.get("api") and not m.get("path") and model_sources(m):
             out[f"model:{key}"] = entry(m.get("label", key), m.get("bytes") or 0, model_sources(m))
@@ -396,7 +401,8 @@ def _tool(j: Job, repo: str, tag: str, names: list[str], into: Path):
     tmp = settings.ROOT / ".tmp" / "downloads"
     for n in names:
         url, sha, size = assets[n]
-        archive = fetch(j, lambda _s, u=url: u, tmp / n, size, sha)
+        archive = fetch(j, lambda s, u=url: settings.get()["github_mirror"] + u if s == "github-mirror" else u,
+                        tmp / n, size, sha)
         j.message = f"正在解压 {n}…"
         extract(archive, into)
         archive.unlink(missing_ok=True)

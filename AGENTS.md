@@ -11,14 +11,14 @@
 ## 项目目录树
 ```text
 live-dub/
-├── livedub/         本机处理链：settings、ingest、processor、mt、playout、subs
+├── livedub/         本机处理链：settings、install、ingest、processor、mt、playout、subs
 │   └── server/     接口 app、场次 session、服务 services、进程 procs
 ├── svc/            NeMo CPU 识别；原生 ONNX 入口 livedub/asr.py
 ├── dubsvc/         Linux GPU 配音服务
 │   └── omni/       vLLM-Omni 补丁和部署配置
 ├── app/            Vue 界面和 Tauri 外壳，详见 app/AGENTS.md
 ├── configs/        内置场景；local/ 为不入库的个人预设
-├── scripts/        fetch.py 下载工具与模型；linux/ 安装 Linux / WSL 环境
+├── scripts/        linux/ 安装 Linux / WSL 环境；build_desktop.ps1 构建安装包
 ├── bench/          实验、测试、分析；configs/ 测试源
 └── docs/           用户文档；dev/ 调研与实测记录；media/ README 演示素材
 ```
@@ -46,7 +46,7 @@ Tauri 外壳 → 启动 Python 后端；后端托管 app/dist
 - 路径、端口、工具和 Linux 环境走 livedub/settings.py；新增设置有默认值并更新配置文档。
 - 进程用 server/procs.py 的 spawn；Linux 命令用 settings.linux_argv，路径用 to_linux。
 - 用户界面、错误和提示日志用中文；代码注释用英文解释原因；代码和数据路径不用中文。
-- 文案站在用户角度，严谨简洁：说结果和下一步，不写内部记号（D、PT）和口语（起不来、跑）；错误写明原因和处理办法；同一事物一个叫法（仅字幕、场景、设置向导、NVIDIA 显卡、API key）。
+- 文案站在用户角度，严谨简洁：说结果和下一步，不写内部记号（D、PT）和口语（起不来、跑）；错误写明原因和处理办法；同一事物一个叫法（仅字幕、场景、下载位置、视频缓存、NVIDIA 显卡、API key）。
 - 密钥只放 .secret/，模板在 .secret.example/；不得记录到日志。
 - 不入库：settings.json、.secret/、configs/local/、tools/、models/、outputs/、logs/、data/、.tmp/。
 - 改行为同步对应 docs；实测记 docs/dev/；新任务文档按 docs/YYYY-MM/中文.md 存放。

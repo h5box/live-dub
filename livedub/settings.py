@@ -30,6 +30,8 @@ DEFAULTS = {
     "runs_dir": "outputs/live",          # one directory per session
     "logs_dir": "logs",                  # service logs
     "models_dir": "models",              # the download folder: translation models (GGUF), the native ASR model
+    "github_mirror": "",                 # put in front of github.com download URLs (a mirror for slow networks);
+                                         # the downloads of tools then offer it as a source
     "keep_media_runs": 5,                # sessions that keep their video chunks (the rest keep subtitles only)
     "run_in_background": False,          # after the desktop window closes, keep the services running (else they
                                          # stop once no session runs, which frees the GPU)

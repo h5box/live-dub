@@ -108,10 +108,11 @@ flowchart LR
 ### Windows 安装包（推荐）
 
 1. 从 [GitHub Releases](https://github.com/h5box/live-dub/releases) 下载并运行安装程序。
-2. 打开「设置向导」，依次下载字幕组件、填写并测试翻译接口，再播放内置的英语测试片确认效果。
+2. 打开程序，「观看」页会列出还缺少的组件，点击「全部下载」。不下载本地翻译模型时，在「环境」页的「翻译」中填写线上接口的
+   API key。没有现成的视频，可以先用内置的英语测试视频试一下。
 
 > [!TIP]
-> 仅使用字幕时，不需要 Python、Node.js、WSL 或独立显卡；线上翻译按接口服务商的价格计费，模型存放目录可自选。
+> 仅使用字幕时，不需要 Python、Node.js、WSL 或独立显卡；线上翻译按接口服务商的价格计费，模型的下载位置可在「设置」中更改。
 > 原音色配音为可选组件，需要 NVIDIA 显卡和 WSL 2。
 
 ### 从源码运行
@@ -150,7 +151,8 @@ uv run python -m livedub.doctor
    uv sync
    ```
 
-4. Windows 默认使用原生 ONNX 识别：构建并启动界面后，在「设置向导」中下载模型（约 0.8 GB）。
+4. Windows 默认使用原生 ONNX 识别，下载模型（约 0.8 GB）：`uv run python -m livedub.install asr`。
+   也可以启动程序后在「环境」页的「识别」中下载。
    如需 NeMo 的识别热词增强，先将 `settings.json` 中的 `asr.backend` 设为 `nemo`，再安装：
 
    ```powershell
@@ -158,12 +160,12 @@ uv run python -m livedub.doctor
    ```
 
 5. 翻译（二选一）：
-   - 本地：`uv run python scripts/fetch.py all`，下载 llama.cpp 服务端和 Index-Translate-9B，约 5.5 GB；
+   - 本地：`uv run python -m livedub.install model:index-9b`，下载 Index-Translate-9B 和 llama.cpp 服务端，约 5.5 GB；
    - 线上：暂时跳过，启动程序后在「环境」页填写 DeepSeek 或其他 OpenAI 兼容接口的 API key。
 
 6. 中文配音（可选，约 20 GB）：`wsl -e bash scripts/linux/setup_dub.sh`
 
-7. 输出到 OBS（可选）：`uv run python scripts/fetch.py mediamtx`
+7. 输出到 OBS（可选）：`uv run python -m livedub.install mediamtx`
 
 </details>
 
@@ -171,20 +173,21 @@ uv run python -m livedub.doctor
 <summary><b>Linux</b></summary>
 
 ```bash
-sudo apt install git ffmpeg curl            # 另需 Node.js（构建界面）；观看 YouTube 还需 Deno 或 Node.js
+sudo apt install git ffmpeg curl                  # 另需 Node.js（构建界面）；观看 YouTube 还需 Deno 或 Node.js
 curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/h5box/live-dub.git && cd live-dub
 uv sync
-bash scripts/linux/setup_asr.sh             # 识别（必需）
-uv run python scripts/fetch.py all          # 本地翻译（也可改用线上翻译）
-bash scripts/linux/setup_dub.sh             # 中文配音（可选，需要 NVIDIA 显卡）
+bash scripts/linux/setup_asr.sh                   # 识别（必需）
+uv run python -m livedub.install model:index-9b   # 本地翻译（也可改用线上翻译）
+bash scripts/linux/setup_dub.sh                   # 中文配音（可选，需要 NVIDIA 显卡）
 ```
 
 </details>
 
 > [!TIP]
-> **国内网络**：Hugging Face 下载慢可设置 `HF_ENDPOINT=https://hf-mirror.com`；PyPI 慢可将 `UV_DEFAULT_INDEX` 指向国内镜像；
-> GitHub 慢可为 `scripts/fetch.py` 加上 `--github-mirror`。详见 [docs/安装.md](docs/安装.md)。
+> **国内网络**：程序和 `livedub.install` 下载模型时，会在 Hugging Face、魔搭 ModelScope 和 hf-mirror 之间自动切换；
+> Linux 安装脚本可设置 `HF_ENDPOINT=https://hf-mirror.com`；PyPI 慢可将 `UV_DEFAULT_INDEX` 指向国内镜像；
+> GitHub 慢可在 `settings.json` 中填写 `github_mirror`。详见 [docs/安装.md](docs/安装.md)。
 
 ## 运行
 
@@ -208,7 +211,7 @@ cd ..
 
 ### 使用方法
 
-1. 在「设置向导」中安装字幕组件并测试翻译接口。然后在「观看」页粘贴链接或选择视频，点击「开始」，默认只生成字幕。
+1. 首次使用时，「观看」页会列出还缺少的组件，点击「全部下载」。然后粘贴链接或选择视频，点击「开始」，默认只生成字幕。
 2. 场景、翻译模型、直播延时和 OBS 输出在「高级选项」中设置。勾选中文配音会自动启动已安装的配音服务。
 3. 直播在延时 D 秒后开始播放；点播在首段字幕就绪后播放，进度条上的绿色区域表示已处理的部分。
    播放时可暂停、拖动进度、点击字幕跳转；直播可点击「回到直播位置」恢复按设定延时播放。
@@ -219,7 +222,8 @@ cd ..
 
 ## 设置
 
-无需设置文件即可使用，默认路径与安装脚本一致。如需修改路径、端口、默认翻译模型、YouTube cookies 等，
+无需设置文件即可使用，默认路径与安装脚本一致。下载位置、保留几场的视频缓存、关闭窗口后是否继续运行服务和外观，
+在程序的「设置」页修改。如需修改其他路径、端口、默认翻译模型、YouTube cookies 等，
 请参照 [settings.example.json](settings.example.json) 在项目目录新建 `settings.json`，只写需要修改的项，说明见 [docs/配置.md](docs/配置.md)。
 自定义场景（术语表、热词）放在 `configs/local/`。
 

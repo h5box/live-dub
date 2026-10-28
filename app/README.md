@@ -13,7 +13,7 @@ Vue 3 + TypeScript，外面可以套 Tauri 2 成为桌面程序，也可以直�
   `src-tauri/target/release/live-dub(.exe)`。它往上找项目目录（含 `livedub/server` 的那一层）来起后端，所以要留在项目里面，
   或者设 `LIVEDUB_HOME`。起后端时优先用项目的 `.venv`，没有就用 `uv run`；后端日志在 `logs/server.log`。
 - 开发：`npx pnpm tauri dev`（界面热更新；后端要先手动起）。
-- Windows 安装包：根目录运行 `scripts/build_desktop.ps1`，内置 Python 后端与测试片，模型由首次向导下载。
+- Windows 安装包：根目录运行 `scripts/build_desktop.ps1`，内置 Python 后端与测试片，模型在程序里下载。
 
 ## 不起服务、不占显卡改界面
 
@@ -36,11 +36,11 @@ VITE_API=http://127.0.0.1:8099 npx pnpm dev          # PowerShell：$env:VITE_AP
   直播按「第一帧 + 延时 D」播放；点播首段字幕就绪后播放，绿色区域为已处理范围，跳到未处理位置会优先生成字幕。
   空格暂停，← → 跳 5 秒，A / D 跳到上一句 / 下一句（一句播过 1.5 秒后按 A 重听这句），C 切换字幕，F 全屏。
   指标和余量图放在运行详情；右边是字幕列表与状态。
-  环境还缺必需的东西时，顶上有提示，点过去看怎么装。
+  还缺必需的组件时，列在开始按钮上方，点「全部下载」一次装好，也可以先用内置的测试视频试一下。
 - **历史**：回放保留的视频、继续观看、导出中文／原文／双语 SRT，查看占用并清理缓存或删除记录。
-- **设置向导**：安装原生字幕和 YouTube 组件、测试翻译接口、播放测试片；配音按需安装。
-- **环境**：环境检查（缺什么、运行哪条命令补上），识别、翻译、配音、MediaMTX 的起停、说明和日志，线上翻译的 key，显卡，后端。
-- 主题跟随系统，左下角可固定浅色 / 深色。
+- **环境**：按服务分卡片（本机、识别、翻译、配音、OBS 输出），每张卡片里有它的检查项、下载、起停、说明和日志，线上翻译的 key。
+  每个下载单独一行：进度、暂停 / 继续、取消，旁边可选来源（默认自动选择，连不上就换下一个）。
+- **设置**：下载位置（更改时把已下载的模型一起移过去）、观看记录（保留几场的视频缓存、清理）、关闭窗口后是否继续运行服务、外观。
 
 ## 代码
 
@@ -55,7 +55,7 @@ src/
 ├── lib/          dubAudio.ts 配音混音（和 livedub/playout.py 同一套规则）· rows.ts 字幕行（events + timing 按 pt0 合并）
 │                 · stats.ts · format.ts · prefs.ts（主题、表单、播放器设置的记忆）· serviceInfo.ts
 ├── components/   Player、SourceBar、SubtitleTimeline / SubtitleLine、SlackChart、Kpi、ServiceList、NavRail、Icon（自绘图标）…
-├── views/        LiveView、HistoryView、ServicesView、SetupView（首次向导）
+├── views/        LiveView、HistoryView、ServicesView（环境）、SettingsView
 └── styles/       tokens.css 颜色（light-dark() 一处写两套）· base.css 按钮、表单、卡片
 dev/mock_server.py   改界面用的假后端
 ```
