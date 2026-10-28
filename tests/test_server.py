@@ -90,3 +90,20 @@ def test_status_says_which_version_is_running(monkeypatch):
     monkeypatch.setattr(app.services, "status", {"services": {}})
     monkeypatch.setattr(app, "session", SimpleNamespace(info=None, active=False))
     assert app.snapshot()["version"] == app.__version__
+
+
+@pytest.mark.parametrize("background, stopped", [(False, ["mt", "dub"]), (True, [])])
+def test_closing_the_window_stops_the_services_once_no_session_runs(services, settings_file, monkeypatch,
+                                                                     background, stopped):
+    app.settings.save({"run_in_background": background})
+    services.status = {"services": {"asr": {"up": False}, "mt": {"up": True},
+                                    "dub": {"up": False, "pending": "starting"}, "mediamtx": {"up": False}}}
+    asyncio.run(app.closed())
+    monkeypatch.setattr(app.session, "active", True)
+    asyncio.run(app.after_window_closed())
+    assert services.calls == []                     # the session goes on
+    monkeypatch.setattr(app.session, "active", False)
+    asyncio.run(app.after_window_closed())
+    asyncio.run(app.after_window_closed())          # once
+    assert services.calls == [("stop", n) for n in stopped]
+    assert not app.window_closed

@@ -1,15 +1,32 @@
 // The window is only a view: the Python backend (livedub.server on 127.0.0.1:8090) runs the services and the
 // session. If it is not running when the window opens, start it detached so it (and a running session) keeps going
-// after the window closes. The project directory is found from the exe's location (the exe built in
+// after the window closes; on closing, tell it so: once no session runs it stops the services, freeing the GPU
+// (unless its settings keep them running). The project directory is found from the exe's location (the exe built in
 // app/src-tauri/target/...) or from LIVEDUB_HOME.
+use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 use tauri::Manager;
 
+fn connect() -> std::io::Result<TcpStream> {
+    TcpStream::connect_timeout(&"127.0.0.1:8090".parse().unwrap(), Duration::from_millis(300))
+}
+
 fn backend_up() -> bool {
-    TcpStream::connect_timeout(&"127.0.0.1:8090".parse().unwrap(), Duration::from_millis(300)).is_ok()
+    connect().is_ok()
+}
+
+/// POST /api/window-closed, waiting briefly for the answer so the request is not cut off by the exit.
+fn notify_closed() {
+    let Ok(mut s) = connect() else { return };
+    let _ = s.set_write_timeout(Some(Duration::from_secs(2)));
+    let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
+    let req = "POST /api/window-closed HTTP/1.1\r\nHost: 127.0.0.1:8090\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    if s.write_all(req.as_bytes()).is_ok() {
+        let _ = s.read(&mut [0u8; 64]);
+    }
 }
 
 fn is_project(d: &Path) -> bool {
@@ -96,6 +113,11 @@ pub fn run() {
         .setup(|app| {
             start_backend(&app.path().resource_dir()?);
             Ok(())
+        })
+        .on_window_event(|_, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                notify_closed();
+            }
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

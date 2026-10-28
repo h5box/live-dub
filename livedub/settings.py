@@ -31,6 +31,8 @@ DEFAULTS = {
     "logs_dir": "logs",                  # service logs
     "models_dir": "models",              # the download folder: translation models (GGUF), the native ASR model
     "keep_media_runs": 5,                # sessions that keep their video chunks (the rest keep subtitles only)
+    "run_in_background": False,          # after the desktop window closes, keep the services running (else they
+                                         # stop once no session runs, which frees the GPU)
     "tools": {
         "ffmpeg": "",
         "ffprobe": "",

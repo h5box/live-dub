@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { gb } from "../lib/format";
-import { cycleTheme, theme } from "../lib/prefs";
 import { live, onAir, session } from "../stores/live";
 import Icon from "./Icon.vue";
 
@@ -19,8 +18,6 @@ const gpu = computed(() => live.status?.gpu ?? {});
 const gpuPct = computed(() => gpu.value.total_mb ? Math.min(100, (100 * (gpu.value.used_mb ?? 0)) / gpu.value.total_mb) : 0);
 const svcTrouble = computed(() => Object.values(live.status?.services ?? {}).some((s) => s.error) ||
   (live.doctor !== null && !live.doctor.ok));
-const themeLabel = computed(() => ({ system: "跟随系统", light: "浅色", dark: "深色" })[theme.value]);
-const themeIcon = computed(() => ({ system: "auto", light: "sun", dark: "moon" })[theme.value]);
 const starting = computed(() => ["starting", "stopping"].includes(session.value?.state ?? ""));
 </script>
 
@@ -53,11 +50,6 @@ const starting = computed(() => ["starting", "stopping"].includes(session.value?
       <Icon :name="live.link ? 'plug' : 'alert'" :size="14" />
       <span>{{ live.link ? "已连接" : "未连接" }}</span>
     </div>
-
-    <button class="item theme" :title="`主题：${themeLabel}（点击切换）`" @click="cycleTheme">
-      <span class="ico"><Icon :name="themeIcon" :size="18" /></span>
-      <span class="lbl">{{ themeLabel }}</span>
-    </button>
   </nav>
 </template>
 
@@ -89,5 +81,4 @@ const starting = computed(() => ["starting", "stopping"].includes(session.value?
 .link .ic { color: var(--good); }
 .link.off { color: var(--ink-1); }
 .link.off .ic { color: var(--critical); }
-.theme .lbl { font-size: 11px; color: var(--ink-3); }
 </style>

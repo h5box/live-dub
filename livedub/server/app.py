@@ -1,8 +1,9 @@
 """HTTP API for the desktop app (127.0.0.1 only): service status, start / stop and logs, the environment check,
-downloads and the download folder, online translation settings, session start / stop, past sessions (the list, one session's records), a session's
-picture for the app's player (HLS playlist + chunks) and its dub clips, and a Server-Sent Events stream with status
-every 2 s plus the session's subtitle and timing records as they are written. The built UI (app/dist) is served at /,
-so a browser can open it too."""
+downloads and the download folder, the sessions folder, online translation settings, what happens when the desktop
+window closes, session start / stop, past sessions (the list, one session's records), a session's picture for the
+app's player (HLS playlist + chunks) and its dub clips, and a Server-Sent Events stream with status every 2 s plus the
+session's subtitle and timing records as they are written. The built UI (app/dist) is served at /, so a browser can
+open it too."""
 import asyncio
 import json
 import os
@@ -25,6 +26,7 @@ from .services import LABELS, Services, gpu_warnings, info as service_info, tail
 services = Services()
 session: sess.Session | None = None
 health: dict = {}
+window_closed = False   # the desktop window said it closed; a window that connects again clears it
 
 
 async def poll():
@@ -33,9 +35,27 @@ async def poll():
         try:
             await services.refresh()
             health = await asyncio.to_thread(session.health)
+            await after_window_closed()
         except Exception as e:
             print("poll:", e, flush=True)
         await asyncio.sleep(2)
+
+
+async def after_window_closed():
+    """Once the window has closed and no session runs (any more), stop every service that runs or is starting, which
+    frees the GPU, unless run_in_background keeps them."""
+    global window_closed
+    if not window_closed or session.active:
+        return
+    window_closed = False
+    if settings.get()["run_in_background"]:
+        return
+    for name, st in services.status.get("services", {}).items():
+        if st["up"] or st.get("pending") == "starting":
+            try:
+                await services.stop(name)
+            except Exception as e:
+                print(f"stop {name}:", e, flush=True)
 
 
 @asynccontextmanager
@@ -152,6 +172,61 @@ async def download_dir_set(req: DirReq):
     except RuntimeError as e:
         raise HTTPException(409, str(e))
     return {**_download_dir(), "dir": str(dest)}
+
+
+def _history() -> dict:
+    d = sess.RUNS
+    near = next(p for p in (d, *d.parents) if p.exists())
+    return {"dir": str(d), "free": shutil.disk_usage(near).free, "keep": settings.get()["keep_media_runs"],
+            **sess.storage()}
+
+
+@app.get("/api/settings/history")
+async def history_dir():
+    return await asyncio.to_thread(_history)
+
+
+class KeepReq(BaseModel):
+    keep: int
+
+
+@app.post("/api/settings/history")
+async def set_history(req: KeepReq):
+    if not 1 <= req.keep <= 100:
+        raise HTTPException(400, "保留的场数要在 1 到 100 之间")
+    settings.save({"keep_media_runs": req.keep})
+    await asyncio.to_thread(sess.prune_media, req.keep)
+    return await asyncio.to_thread(_history)
+
+
+@app.post("/api/settings/history/clean")
+async def clean_history():
+    assert session is not None
+    await asyncio.to_thread(sess.clean_media, session.info.get("name") if session.active else None)
+    return await asyncio.to_thread(_history)
+
+
+class BackgroundReq(BaseModel):
+    run_in_background: bool
+
+
+@app.get("/api/settings/background")
+async def background():
+    return {"run_in_background": settings.get()["run_in_background"]}
+
+
+@app.post("/api/settings/background")
+async def set_background(req: BackgroundReq):
+    settings.save({"run_in_background": req.run_in_background})
+    return {"run_in_background": req.run_in_background}
+
+
+@app.post("/api/window-closed")
+async def closed():
+    """From the desktop shell: once no session runs, the services stop, unless run_in_background keeps them."""
+    global window_closed
+    window_closed = True
+    return {"ok": True}
 
 
 @app.get("/api/models")
@@ -470,6 +545,9 @@ def _sse(kind: str, data) -> str:
 
 @app.get("/api/stream")
 async def stream(request: Request):
+    global window_closed
+    window_closed = False   # a window is open (again)
+
     async def gen():
         cur, offs, last = None, {}, 0.0
         yield "retry: 2000\n\n"

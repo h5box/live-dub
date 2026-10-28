@@ -1,5 +1,5 @@
 import type { DoctorReport, MtModel, Preset, Provider, Session, SessionDetail, SessionSummary, StartOpts, Status,
-  SvcInfo, SvcName, Download, Downloadable, DownloadDir, YoutubeAuth } from "./types";
+  SvcInfo, SvcName, Download, Downloadable, DownloadDir, HistoryDir, YoutubeAuth } from "./types";
 
 // the backend always listens on 127.0.0.1:8090 and also serves the built UI there, so a browser can open it too
 // (same origin, no base); VITE_API points the dev server elsewhere, e.g. at app/dev/mock_server.py
@@ -39,6 +39,12 @@ export const api = {
     call<Record<string, Download>>("POST", `/api/downloads/${encodeURIComponent(key)}/pause`),
   downloadDir: () => call<DownloadDir>("GET", "/api/settings/downloads"),
   setDownloadDir: (dir: string) => call<DownloadDir>("POST", "/api/settings/downloads", { dir }),
+  historyDir: () => call<HistoryDir>("GET", "/api/settings/history"),
+  setKeep: (keep: number) => call<HistoryDir>("POST", "/api/settings/history", { keep }),
+  cleanHistory: () => call<HistoryDir>("POST", "/api/settings/history/clean"),
+  background: () => call<{ run_in_background: boolean }>("GET", "/api/settings/background"),
+  setBackground: (on: boolean) => call<{ run_in_background: boolean }>("POST", "/api/settings/background",
+    { run_in_background: on }),
   status: () => call<Status>("GET", "/api/status"),
   configs: () => call<Preset[]>("GET", "/api/configs"),
   sessions: () => call<SessionSummary[]>("GET", "/api/sessions"),

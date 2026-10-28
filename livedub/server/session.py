@@ -285,13 +285,47 @@ def media_file(name: str, kind: str, file: str) -> Path | None:
     return p if p.is_file() else None
 
 
-def prune_buffers(keep: int | None = None):
-    """Chunks are a cache for the player: only the newest `keep` runs hold theirs (each is a copy of what was watched)."""
+MEDIA = ("buf", "clips")                 # a run's video chunks and dub clips: a cache for the player
+
+
+def _drop_media(d: Path):
     import shutil
+    if not d.is_symlink():               # never follow a run symlink out of RUNS
+        for sub in MEDIA:
+            shutil.rmtree(d / sub, ignore_errors=True)
+
+
+def prune_media(keep: int | None = None):
+    """Only the newest `keep` runs hold their video chunks and dub clips (each is a copy of what was watched); the
+    others keep their subtitles and records."""
     keep = settings.get()["keep_media_runs"] if keep is None else keep
-    runs = sorted(d for d in RUNS.glob("*/buf") if d.is_dir())
-    for d in runs[:-keep] if keep else runs:
-        shutil.rmtree(d, ignore_errors=True)
+    runs = sorted(d for d in RUNS.glob("*") if any((d / sub).is_dir() for sub in MEDIA))
+    for d in runs[:-keep] if keep > 0 else runs:
+        _drop_media(d)
+
+
+def clean_media(skip: str | None = None):
+    """Drop the video chunks and dub clips of every run but `skip` (the one in progress)."""
+    for d in RUNS.glob("*"):
+        if d.name != skip:
+            _drop_media(d)
+
+
+def storage() -> dict:
+    """The runs folder for the settings page: how many runs, their bytes in all and in video chunks and dub clips."""
+    used = media = count = 0
+    for d in RUNS.glob("*"):
+        if not d.is_dir() or d.is_symlink():
+            continue
+        count += (d / "run.json").is_file()
+        for p in d.rglob("*"):
+            try:
+                n = p.stat().st_size if p.is_file() else 0
+            except OSError:              # removed meanwhile
+                continue
+            used += n
+            media += n if p.parent.name in MEDIA and p.parent.parent == d else 0
+    return {"used": used, "media": media, "count": count}
 
 
 def remove_run(name: str, cache_only=False):
@@ -419,9 +453,9 @@ class Session:
         kind = source_kind(src)
         title = base.get("name", preset) if src == base.get("src") else (Path(src).name if kind == "file" else src)
         name = time.strftime("%Y%m%d-%H%M%S") + "-" + (preset if preset != "default" else kind)
-        await asyncio.to_thread(prune_buffers)
         self.dir = RUNS / name
         (self.dir / "clips").mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(prune_media)           # counting this run
         (self.dir / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
         self.info = {"name": name, "preset": preset, "title": title, "src": src, "kind": kind, "dir": str(self.dir),
                      "delay_s": cfg.get("delay_s", 30), "dub": cfg["dub"], "obs": cfg["obs"],

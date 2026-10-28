@@ -34,6 +34,34 @@ def test_cache_cleanup_keeps_transcript(run):
     assert not (run / "clips").exists()
 
 
+def _runs(root, names):
+    for n in names:
+        for sub in ("buf", "clips"):
+            (root / n / sub).mkdir(parents=True)
+            (root / n / sub / "x").write_bytes(b"12345")
+        (root / n / "events.jsonl").write_text("{}\n", encoding="utf-8")
+
+
+def test_prune_keeps_media_of_newest_runs(run):
+    _runs(run.parent, ["20261011-a", "20261012-b"])
+    session.prune_media(2)
+    assert not (run / "buf").exists() and not (run / "clips").exists()
+    assert (run / "events.jsonl").exists()
+    assert all((run.parent / n / "buf" / "x").exists() for n in ("20261011-a", "20261012-b"))
+
+
+def test_clean_media_spares_the_run_in_progress(run):
+    _runs(run.parent, ["20261012-b"])
+    session.clean_media(skip="20261012-b")
+    assert not (run / "buf").exists() and (run.parent / "20261012-b" / "clips" / "x").exists()
+    assert session.storage()["media"] == 10
+
+
+def test_storage_counts_runs_and_media(run):
+    st = session.storage()
+    assert st["count"] == 1 and st["media"] == 8 and st["used"] > st["media"]
+
+
 @pytest.mark.parametrize("name", ["../other", "..", "/outside", "test/../other"])
 def test_rejects_paths_outside_history(run, name):
     with pytest.raises(ValueError):

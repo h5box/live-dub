@@ -63,6 +63,8 @@ export interface Download {
   message: string; error: string; pausable: boolean;
 }
 export interface DownloadDir { dir: string; free: number; used: number }
+/** the sessions folder: its runs, their bytes in all and in video caches, how many newest runs keep theirs */
+export interface HistoryDir { dir: string; free: number; used: number; media: number; count: number; keep: number }
 export interface DoctorReport {
   items: DoctorItem[]; ok: boolean; missing_required: string[]; missing_optional: string[];
   settings_file: string; settings_exists: boolean;

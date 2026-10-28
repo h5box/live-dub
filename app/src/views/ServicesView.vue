@@ -328,7 +328,7 @@ onMounted(() => { checkEnv(); loadProviders(); loadYoutube(); });
         </div>
         <div>
           <h3>后端</h3>
-          <p class="what">窗口只负责界面，服务的启停和观看的开始、停止都由后端完成。关闭窗口后，后端和进行中的翻译会继续运行。</p>
+          <p class="what">窗口只负责界面，服务的启停和观看的开始、停止都由后端完成。关闭窗口后，进行中的观看会继续；没在观看时，各项服务会停止以释放显存（可在「设置」中更改）。</p>
           <dl>
             <dt>地址</dt><dd><code>{{ BASE || "http://127.0.0.1:8090" }}</code></dd>
             <template v-if="live.status"><dt>版本</dt>
@@ -374,14 +374,6 @@ onMounted(() => { checkEnv(); loadProviders(); loadYoutube(); });
 /* local or online: a segmented radio group */
 .mode { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; }
 .ml { font-size: 12.5px; color: var(--ink-3); }
-.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--surface-2); }
-.seg label { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 14px;
-  border-radius: calc(var(--radius-sm) - 2px); font-size: 13px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
-.seg input { position: absolute; opacity: 0; pointer-events: none; }
-.seg label.on { background: var(--surface); color: var(--ink-1); font-weight: 600; box-shadow: 0 0 0 1px var(--border-2); }
-.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
-.seg label.na { color: var(--ink-3); cursor: default; }
-.seg small { font-size: 11px; color: var(--ink-3); font-weight: 400; }
 
 /* the models or interfaces of the chosen side: one row each, the picked one marked */
 .opts { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-width: 760px; }

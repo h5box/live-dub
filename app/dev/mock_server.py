@@ -290,6 +290,9 @@ def health():
 
 DL: dict[str, dict] = {}   # the downloads, as GET /api/status shows them, plus when each last moved (_t)
 DL_DIR = {"dir": "C:\\Users\\me\\AppData\\Local\\LiveDub\\models", "free": 412_000_000_000, "used": 0}
+HISTORY = {"dir": "C:\\Users\\me\\AppData\\Local\\LiveDub\\outputs\\live", "free": 412_000_000_000,
+           "used": 9_630_000_000, "media": 9_410_000_000, "count": 12, "keep": 5}
+BACKGROUND = {"run_in_background": False}
 
 
 def downloads():
@@ -414,6 +417,10 @@ class H(BaseHTTPRequestHandler):
             return self._json(real_install.catalog())
         if p == "/api/settings/downloads":
             return self._json(DL_DIR)
+        if p == "/api/settings/history":
+            return self._json(HISTORY)
+        if p == "/api/settings/background":
+            return self._json(BACKGROUND)
         m = re.fullmatch(r"/api/sessions/([\w.-]+)/media/(index\.m3u8|[\w.-]+)", p)
         if m:
             if m[2] == "index.m3u8":
@@ -452,6 +459,17 @@ class H(BaseHTTPRequestHandler):
             DL.update({k: {"speed": 0, "message": "", "error": "", "auto": True, "pausable": True, **v, "_t": time.time()}
                        for k, v in body.items()})
             return self._json(downloads())
+        if p == "/api/settings/history":
+            HISTORY["keep"] = int(body.get("keep") or HISTORY["keep"])
+            return self._json(HISTORY)
+        if p == "/api/settings/history/clean":
+            HISTORY.update(used=HISTORY["used"] - HISTORY["media"], media=0)
+            return self._json(HISTORY)
+        if p == "/api/settings/background":
+            BACKGROUND["run_in_background"] = bool(body.get("run_in_background"))
+            return self._json(BACKGROUND)
+        if p == "/api/window-closed":
+            return self._json({"ok": True})
         if p == "/api/settings/downloads":
             DL_DIR["dir"] = body.get("dir") or DL_DIR["dir"]
             DL["move"] = {"label": "移动已下载的模型", "state": "running", "done": 0, "total": DL_DIR["used"] or 1,

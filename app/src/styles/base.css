@@ -63,6 +63,16 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .switch input:checked::after { transform: translateX(14px); background: #fff; }
 .switch input:disabled { opacity: .5; cursor: default; }
 
+/* a segmented radio group: <div class="seg"><label class="on"><input type="radio" />…</label>… */
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.seg label { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 14px;
+  border-radius: calc(var(--radius-sm) - 2px); font-size: 13px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label.on { background: var(--surface); color: var(--ink-1); font-weight: 600; box-shadow: 0 0 0 1px var(--border-2); }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.seg label.na { color: var(--ink-3); cursor: default; }
+.seg small { font-size: 11px; color: var(--ink-3); font-weight: 400; }
+
 /* ---- surfaces --------------------------------------------------------------------------------------- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .card-h { display: flex; align-items: center; gap: 8px; padding: 10px 14px; min-height: 40px; }

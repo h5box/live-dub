@@ -24,7 +24,3 @@ function apply(t: Theme) {
 }
 apply(theme.value);
 watch(theme, (t) => { apply(t); save("theme", t); });
-
-export function cycleTheme() {
-  theme.value = theme.value === "system" ? "light" : theme.value === "light" ? "dark" : "system";
-}
