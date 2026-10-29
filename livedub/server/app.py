@@ -131,7 +131,7 @@ def _download_dir() -> dict:
     d = install.model_dir()
     near = next(p for p in (d, *d.parents) if p.exists())
     return {"dir": str(d), "free": shutil.disk_usage(near).free,
-            "used": sum(p.stat().st_size for p in install.downloaded())}
+            "used": sum(p.stat().st_size for p in install.downloaded()), "elsewhere": install.elsewhere()}
 
 
 @app.get("/api/settings/downloads")

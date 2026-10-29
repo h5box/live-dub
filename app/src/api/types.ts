@@ -62,7 +62,8 @@ export interface Download {
   source: string; auto: boolean;               // where from; auto = goes on to the next source when one fails
   message: string; error: string; pausable: boolean;
 }
-export interface DownloadDir { dir: string; free: number; used: number }
+/** the download folder; `elsewhere`: models settings.json points at a place of their own (not counted, never moved) */
+export interface DownloadDir { dir: string; free: number; used: number; elsewhere: { label: string; path: string }[] }
 /** the sessions folder: its runs, their bytes in all and in video caches, how many newest runs keep theirs */
 export interface HistoryDir { dir: string; free: number; used: number; media: number; count: number; keep: number }
 export interface DoctorReport {

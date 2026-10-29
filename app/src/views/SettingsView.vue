@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Settings of the app as a whole. Storage: the download folder (the ASR and translation models; changing it moves the
-// models downloaded so far, the backend stops the services that hold them open) and the sessions folder (how many
-// sessions keep their video, and a clean-up of it). What closing the window does (desktop app only). The theme.
+// models downloaded so far, the backend stops the services that hold them open; models that settings.json puts in a
+// place of their own are listed, they stay there) and the sessions folder (how many sessions keep their video, and a
+// clean-up of it). What closing the window does (desktop app only). The theme.
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../api/client";
 import type { DownloadDir, HistoryDir } from "../api/types";
@@ -110,6 +111,11 @@ onMounted(async () => {
         <ul class="notes">
           <li>更改后，已下载的模型会一起移到新位置；移动期间识别和翻译服务会先停止。</li>
           <li v-if="wsl">配音环境安装在 WSL 中（约 20 GB），不在这个文件夹。</li>
+          <li v-if="dir?.elsewhere?.length">
+            下列模型在 settings.json 中另行指定了位置，不计入「已下载」，更改下载位置时也不会移动：
+            <ul class="other">
+              <li v-for="m in dir.elsewhere" :key="m.path">{{ m.label }}<code :title="m.path">{{ m.path }}</code></li>
+            </ul></li>
         </ul>
       </div>
 
@@ -179,6 +185,8 @@ onMounted(async () => {
 .bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s; }
 .notes { margin: 10px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.7; color: var(--ink-3); }
+.other { margin: 2px 0 0; padding-left: 16px; }
+.other code { margin-left: 8px; font-size: 11.5px; color: var(--ink-2); overflow-wrap: anywhere; }
 .row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
 .sp { flex: 1; }
 .keep { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12.5px; color: var(--ink-2); }

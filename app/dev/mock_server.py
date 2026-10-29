@@ -289,7 +289,7 @@ def health():
 
 
 DL: dict[str, dict] = {}   # the downloads, as GET /api/status shows them, plus when each last moved (_t)
-DL_DIR = {"dir": "C:\\Users\\me\\AppData\\Local\\LiveDub\\models", "free": 412_000_000_000, "used": 0}
+DL_DIR = {"dir": "C:\\Users\\me\\AppData\\Local\\LiveDub\\models", "free": 412_000_000_000, "used": 0, "elsewhere": []}
 HISTORY = {"dir": "C:\\Users\\me\\AppData\\Local\\LiveDub\\outputs\\live", "free": 412_000_000_000,
            "used": 9_630_000_000, "media": 9_410_000_000, "count": 12, "keep": 5}
 BACKGROUND = {"run_in_background": False}

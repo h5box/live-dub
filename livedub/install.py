@@ -123,6 +123,16 @@ def downloaded() -> list[Path]:
     return [q for p in files for q in (p, p.with_name(p.name + ".part")) if q.is_file()]
 
 
+def elsewhere() -> list[dict]:
+    """The models settings.json points at a place of their own (asr.onnx_dir, mt.models.<key>.path): they are not
+    counted in the download folder and stay where they are when it moves."""
+    out = [{"label": m.get("label", key), "path": str(gguf(key))} for key, m in mt.models().items()
+           if not m.get("api") and m.get("path") and gguf(key).is_file()]
+    if settings.get()["asr"]["onnx_dir"] and (settings.asr_dir() / ASR_FILES[0][3]).is_file():
+        out.insert(0, {"label": "识别模型", "path": str(settings.asr_dir())})
+    return out
+
+
 # ---- the jobs ------------------------------------------------------------------------------------------------------
 
 class Job:

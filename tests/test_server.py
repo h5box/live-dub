@@ -1,4 +1,5 @@
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -107,3 +108,18 @@ def test_closing_the_window_stops_the_services_once_no_session_runs(services, se
     asyncio.run(app.after_window_closed())          # once
     assert services.calls == [("stop", n) for n in stopped]
     assert not app.window_closed
+
+
+def test_the_download_folder_lists_models_kept_elsewhere(settings_file, tmp_path):
+    gguf, onnx = tmp_path / "mine.gguf", tmp_path / "onnx"
+    gguf.write_bytes(b"gguf")
+    onnx.mkdir()
+    (onnx / "encoder.int8.onnx").write_bytes(b"onnx")
+    settings_file.write_text(json.dumps({"models_dir": str(tmp_path / "models"), "asr": {"onnx_dir": str(onnx)},
+        "mt": {"models": {"index-9b": {"path": str(gguf)}, "hy-mt2": {"path": str(tmp_path / "gone.gguf")}}}}),
+        encoding="utf-8")
+    app.settings.reload()
+    d = asyncio.run(app.download_dir())
+    assert d["used"] == 0                           # neither is in the folder, and moving it leaves them be
+    assert d["elsewhere"] == [{"label": "识别模型", "path": str(onnx)},
+                              {"label": "Index-Translate-9B", "path": str(gguf)}]   # a missing file is not listed
