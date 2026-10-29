@@ -21,4 +21,4 @@ Check-Exit
 uv run --no-sync pyinstaller --noconfirm --clean --name LiveDubBackend --distpath dist/desktop --workpath .tmp/pyinstaller --specpath .tmp --paths $PWD --collect-all sherpa_onnx --collect-all soundfile --collect-all yt_dlp --collect-all streamlink --hidden-import livedub.server.__main__ --hidden-import livedub.asr --hidden-import livedub.ingest --hidden-import livedub.processor --hidden-import livedub.playout --hidden-import livedub.install --add-data "$PWD/.tmp/desktop-configs;configs" --add-data "$PWD/app/dist;app/dist" --add-data "$PWD/dubsvc;dubsvc" --add-data "$PWD/svc;svc" --add-data "$PWD/scripts/linux;scripts/linux" --add-data "$PWD/THIRD_PARTY.md;." --add-data "$PWD/LICENSE;." --add-data "$PWD/licenses;licenses" --add-data "$PWD/.tmp/demo/demo.mp4;." scripts/desktop.py
 Check-Exit
 Push-Location app
-try { npx pnpm tauri build --config src-tauri/tauri.windows.conf.json; Check-Exit } finally { Pop-Location }
+try { npx pnpm tauri build --config src-tauri/tauri.installer.conf.json; Check-Exit } finally { Pop-Location }
