@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // One download (GET /api/downloads) where something is missing: a button with its size; while it runs, a progress bar
 // with the speed and time left, its source (another can be picked mid-way: the download carries on from where it is)
-// and pause; after a failure, the reason and a retry.
+// and pause; after a failure, the reason and a retry. Several can show at once (a card lists each model), so every
+// control names its download for screen readers, and the end of one (done, failed) is announced.
 import { computed, ref, watch } from "vue";
 import { size as fmt, span } from "../lib/format";
 import { download, downloads, live, pauseDownload } from "../stores/live";
@@ -24,6 +25,9 @@ const left = computed(() => {
 });
 const label = computed(() => state.value === "paused" ? "继续下载" : state.value === "failed" ? "重试"
   : `${install.value ? "安装" : "下载"}${total.value ? `（约 ${fmt(total.value)}）` : ""}`);
+// a control's name for screen readers: what it shows, then which download (it starts with the visible text, so voice
+// control finds it by what is on screen)
+const named = (shown: string) => `${shown} ${it.value?.label ?? ""}`;
 const switchTo = (e: Event) => download(props.id, (e.target as HTMLSelectElement).value);
 </script>
 
@@ -35,7 +39,8 @@ const switchTo = (e: Event) => download(props.id, (e.target as HTMLSelectElement
              aria-valuemin="0" aria-valuemax="100" :aria-valuenow="job?.total ? Math.round(pct) : undefined">
           <i :style="job?.total ? { width: pct + '%' } : {}" />
         </div>
-        <button v-if="job?.pausable" class="btn sm" @click="pauseDownload(id)">
+        <button v-if="job?.pausable" class="btn sm" :aria-label="named(state === 'queued' ? '取消' : '暂停')"
+                @click="pauseDownload(id)">
           <Icon :name="state === 'queued' ? 'x' : 'pause'" :size="12" />{{ state === "queued" ? "取消" : "暂停" }}</button>
       </div>
       <div class="line">
@@ -45,25 +50,26 @@ const switchTo = (e: Event) => download(props.id, (e.target as HTMLSelectElement
           · {{ fmt(job.speed) }}/s</template><template v-if="left"> · 还需约 {{ left }}</template></span>
         <span class="sp" />
         <label v-if="sources.length > 1 && job" class="src">来源
-          <select class="select" :value="job.source" @change="switchTo">
+          <select class="select" :value="job.source" :aria-label="named('来源')" @change="switchTo">
             <option v-for="s in sources" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select></label>
         <span v-else-if="job?.source && sources.length" class="muted">来自 {{ sources.find((s) => s.id === job?.source)?.label }}</span>
       </div>
     </template>
-    <p v-else-if="state === 'done'" class="ok"><Icon name="check" :size="13" />{{ install ? "安装完成" : "下载完成" }}</p>
+    <p v-else-if="state === 'done'" class="ok" role="status">
+      <Icon name="check" :size="13" /><span class="sr">{{ it.label }}</span>{{ install ? "安装完成" : "下载完成" }}</p>
     <template v-else>
       <div class="line">
-        <button class="btn sm primary" :disabled="!live.link" @click="download(id, pick)">
+        <button class="btn sm primary" :disabled="!live.link" :aria-label="named(label)" @click="download(id, pick)">
           <Icon :name="state === 'failed' ? 'restart' : 'download'" :size="13" />{{ label }}</button>
         <span v-if="state === 'paused' && job?.total" class="muted num">已下载 {{ fmt(job.done) }} / {{ fmt(job.total) }}</span>
         <label v-if="sources.length > 1" class="src">来源
-          <select v-model="pick" class="select">
+          <select v-model="pick" class="select" :aria-label="named('来源')">
             <option value="">自动选择</option>
             <option v-for="s in sources" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select></label>
       </div>
-      <p v-if="state === 'failed'" class="err">{{ job?.error }}</p>
+      <p v-if="state === 'failed'" class="err" role="alert"><span class="sr">{{ it.label }}未完成：</span>{{ job?.error }}</p>
     </template>
   </div>
 </template>
@@ -85,4 +91,5 @@ const switchTo = (e: Event) => download(props.id, (e.target as HTMLSelectElement
 @media (prefers-reduced-motion: reduce) { .bar.busy i { animation: none; width: 100%; opacity: .4; } }
 .ok { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--good-text); }
 .err { font-size: 12px; line-height: 1.6; color: var(--critical); overflow-wrap: anywhere; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
