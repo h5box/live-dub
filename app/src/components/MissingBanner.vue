@@ -27,6 +27,10 @@ const current = computed(() => jobs.value.find(([, j]) => j.state === "running")
 const done = computed(() => jobs.value.reduce((n, [, j]) => n + (j.state === "done" ? j.total : j.done), 0));
 const all = computed(() => Math.max(total.value, jobs.value.reduce((n, [, j]) => n + j.total, 0)));
 const left = computed(() => current.value?.speed ? span((all.value - done.value) / current.value.speed) : "");
+const pct = computed(() => all.value ? Math.min(100, Math.round((100 * done.value) / all.value)) : 0);
+// the banner is a live region and the numbers change every 2 s: screen readers get them from the bar when asked,
+// and hear the banner again only when it names another download
+const progress = computed(() => `${pct.value}%，${size(done.value)} / ${size(all.value)}${left.value ? `，还需约 ${left.value}` : ""}`);
 const failed = computed(() => jobs.value.filter(([, j]) => j.state === "failed"));
 const getAll = () => { for (const k of gets.value) download(k); };
 /** translation without a download: pick an online model and open its card to fill in the key */
@@ -40,11 +44,12 @@ function online() {
 <template>
   <Banner v-if="gets.length && going" tone="info">
     <div class="row">
-      <span>正在下载{{ current ? ` ${current.label}` : "" }}<span class="num"> · {{ size(done) }} / {{ size(all) }}<template
+      <span>正在下载{{ current ? ` ${current.label}` : "" }}<span class="num" aria-hidden="true"> · {{ size(done) }} / {{ size(all) }}<template
         v-if="current?.speed"> · {{ size(current.speed) }}/s</template><template v-if="left"> · 还需约 {{ left }}</template></span></span>
       <button class="btn sm" @click="emit('navigate', 'services')">查看详情</button>
     </div>
-    <div class="bar"><i :style="{ width: (all ? (100 * done) / all : 0) + '%' }" /></div>
+    <div class="bar" role="progressbar" aria-label="下载进度" aria-valuemin="0" aria-valuemax="100"
+         :aria-valuenow="all ? pct : undefined" :aria-valuetext="all ? progress : undefined"><i :style="{ width: pct + '%' }" /></div>
     <p class="sub">下载完成后即可开始观看，可以先离开此页面。</p>
   </Banner>
   <Banner v-else-if="gets.length" :tone="failed.length ? 'critical' : 'warning'">

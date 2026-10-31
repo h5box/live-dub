@@ -22,6 +22,7 @@ const msg = ref("");
 const busy = ref(false);
 const move = computed(() => downloads.value.move);
 const moving = computed(() => ["queued", "running"].includes(move.value?.state ?? ""));
+const movePct = computed(() => move.value?.total ? Math.min(100, Math.round((100 * move.value.done) / move.value.total)) : 0);
 const wsl = computed(() => (live.svcInfo?.dub?.where ?? "").includes("WSL"));
 
 async function change() {
@@ -102,7 +103,8 @@ onMounted(async () => {
         </form>
         <p v-if="dir" class="meta num">已下载 {{ size(dir.used) }} · 所在磁盘剩余 {{ size(dir.free) }}</p>
         <div v-if="moving && move" class="gap">
-          <div class="bar"><i :style="{ width: (move.total ? (100 * move.done) / move.total : 0) + '%' }" /></div>
+          <div class="bar" role="progressbar" aria-label="移动进度" aria-valuemin="0" aria-valuemax="100"
+               :aria-valuenow="move.total ? movePct : undefined"><i :style="{ width: movePct + '%' }" /></div>
           <p class="meta">{{ move.state === "queued" ? "等正在进行的下载完成后开始移动" : move.message || "正在移动…" }}
             <span v-if="move.total" class="num">{{ size(move.done) }} / {{ size(move.total) }}</span></p>
         </div>
