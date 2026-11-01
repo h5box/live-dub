@@ -87,7 +87,7 @@ def checks() -> list[dict]:
         missing, err = set(paths), str(e)
     fix_side = ("先安装 WSL 2：在管理员 PowerShell 中运行 `wsl --install`，重启后按提示创建 Ubuntu" if WSL
                 else "需要 bash")
-    out.append(item("配音（可选）" if native else "识别", f"{side} 环境", err is None, "" if err else err,
+    out.append(item("配音（可选）" if native else "识别", f"{side} 环境", err is None, err or "",
                     fix_side, "optional" if native else "required"))
     asr_ok = err is None and not missing & {"asr_py", "asr_model", "asr_spk"}
     if native:
