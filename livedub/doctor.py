@@ -90,6 +90,14 @@ def checks() -> list[dict]:
     out.append(item("配音（可选）" if native else "识别", f"{side} 环境", err is None, err or "",
                     fix_side, "optional" if native else "required"))
     asr_ok = err is None and not missing & {"asr_py", "asr_model", "asr_spk"}
+
+    def lacks(names: dict[str, str]) -> str:
+        # when the Linux side does not answer nothing was checked: listing it all as missing would have people
+        # reinstall what they have
+        if err:
+            return f"未检查：「{side} 环境」不可用"
+        return "缺少：" + "、".join(v for k, v in names.items() if k in missing)
+
     if native:
         from .asr import FILES
         model_dir = settings.asr_dir()
@@ -98,9 +106,8 @@ def checks() -> list[dict]:
                         f"运行 {cmd('asr')}（约 0.8 GB）", get="asr"))
     else:
         out.append(item("识别", "识别环境（Parakeet + TitaNet，CPU）", asr_ok,
-                    a["model"] if asr_ok else "缺少：" + "、".join(
-                        {"asr_py": "Python 环境", "asr_model": "Parakeet 模型", "asr_spk": "TitaNet 模型"}[k]
-                        for k in ("asr_py", "asr_model", "asr_spk") if k in missing),
+                    a["model"] if asr_ok else lacks({"asr_py": "Python 环境", "asr_model": "Parakeet 模型",
+                                                     "asr_spk": "TitaNet 模型"}),
                         f"在项目目录运行 `{LINUX_RUN} scripts/linux/setup_asr.sh`（约 6 GB，需十几分钟）" if err is None
                         else f"需要先完成「{side} 环境」一项", get="asr-env" if err is None else ""))
 
@@ -137,7 +144,7 @@ def checks() -> list[dict]:
     dub_ok = err is None and not missing & set(dub_keys)
     script = {"omni": "setup_dub.sh", "local": "setup_indextts.sh", "voxcpm": "setup_voxcpm.sh"}.get(d["backend"], "setup_dub.sh")
     out.append(item(g, f"配音环境（{d['backend']}）", dub_ok,
-                    d["model"] if dub_ok else "缺少：" + "、".join(labels[k] for k in dub_keys if k in missing),
+                    d["model"] if dub_ok else lacks({k: labels[k] for k in dub_keys}),
                     f"在项目目录运行 `{LINUX_RUN} scripts/linux/{script}`（约 20 GB，需要 NVIDIA 显卡和约 {d['vram_gb']:g} GB 显存）"
                     if err is None else f"需要先完成「{side} 环境」一项", "optional", "dub" if err is None else ""))
 
