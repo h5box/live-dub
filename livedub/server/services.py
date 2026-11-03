@@ -316,7 +316,10 @@ class Services:
                 await asyncio.to_thread(self.start_asr, kw.get("config") or settings.RESOURCES / "configs" / "default.json")
             elif name == "mt":
                 key = kw.get("model") or settings.get()["mt"]["default"]
-                if mt.models().get(key, {}).get("api"):   # online model: nothing local to start
+                if key not in mt.models():   # e.g. a typo in mt.default: words, not a KeyError the UI shows as 'file'
+                    where = "" if kw.get("model") else "（settings.json 中 mt.default 的值）"
+                    raise RuntimeError(f"找不到翻译模型：{key}{where}")
+                if mt.models()[key].get("api"):   # online model: nothing local to start
                     self.pending.pop(name, None)
                     return
                 await asyncio.to_thread(self.start_mt, key)

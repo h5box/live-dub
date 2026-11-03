@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import __version__, doctor, install, mt_chat, settings
+from .. import __version__, doctor, install, mt, mt_chat, settings
 from ..settings import ROOT
 from . import session as sess
 from .services import LABELS, Services, gpu_warnings, info as service_info, tail
@@ -386,6 +386,8 @@ async def service(name: str, action: str, req: SvcReq | None = None):
         if not kw["config"]:
             raise HTTPException(404, f"找不到场景预设：{req.config}")
     if req.model:
+        if req.model not in mt.models():   # like an unknown preset: refused before a restart stops anything
+            raise HTTPException(404, f"找不到翻译模型：{req.model}")
         kw["model"] = req.model
     if action in ("stop", "restart"):
         await services.stop(name)

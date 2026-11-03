@@ -46,6 +46,24 @@ def test_unknown_preset_is_refused_before_anything_stops(services):
     assert services.calls == []
 
 
+def test_unknown_translation_model_is_refused_before_anything_stops(services):
+    with pytest.raises(HTTPException) as e:
+        call("mt", "restart", model="no-such-model")
+    assert e.value.status_code == 404 and "no-such-model" in e.value.detail
+    assert services.calls == []
+
+
+def test_a_mistyped_default_model_reads_as_such(settings_file, monkeypatch):
+    settings_file.write_text(json.dumps({"mt": {"default": "index9b"}}), encoding="utf-8")
+    app.settings.reload()
+    monkeypatch.setattr(app.settings, "tool", lambda name: "llama-server")   # get past the llama-server check
+    real = app.Services()
+    real.status = {"services": {}}
+    with pytest.raises(RuntimeError, match="找不到翻译模型：index9b（settings.json 中 mt.default 的值）"):
+        asyncio.run(real.start("mt"))
+    assert real.errors["mt"].startswith("找不到翻译模型") and "mt" not in real.pending
+
+
 def test_services_cannot_be_stopped_during_a_session(services, monkeypatch):
     monkeypatch.setattr(app, "session", SimpleNamespace(active=True))
     with pytest.raises(HTTPException) as e:
