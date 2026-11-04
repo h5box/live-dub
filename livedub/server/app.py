@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -74,6 +74,12 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://tauri.localhost", "htt
                    allow_methods=["*"], allow_headers=["*"])
 
 
+@app.exception_handler(settings.Invalid)
+async def _settings_invalid(request: Request, e: settings.Invalid):
+    """A setting changed while settings.json cannot be read: refused, so what its owner wrote there is kept."""
+    return JSONResponse({"detail": f"{e}。改正并重启后端后才能保存设置"}, status_code=409)
+
+
 def snapshot() -> dict:
     assert session is not None
     # t is the moment of sending (services.status carries the time of its last poll, seconds older under load)
@@ -85,6 +91,8 @@ def snapshot() -> dict:
     if session.active and services.status:   # during a session only what it uses matters (dubbing joins at its start)
         st["warnings"] = gpu_warnings(services.status.get("gpu", {}), services.status.get("services", {}),
                                       session.info.get("mt_model"), want_dub=False)
+    if settings.problem:
+        st["warnings"] = [settings.problem, *st.get("warnings", [])]
     return st
 
 
@@ -154,6 +162,8 @@ async def download_dir_set(req: DirReq):
         return _download_dir()
     if session.active:
         raise HTTPException(409, "请先停止观看，再更改下载位置")
+    if settings.problem:   # the models would move, and then the new place could not be saved
+        raise HTTPException(409, "settings.json 格式有误，改正并重启后端后才能更改下载位置")
     try:
         dest.mkdir(parents=True, exist_ok=True)
     except OSError as e:

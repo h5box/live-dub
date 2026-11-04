@@ -100,15 +100,39 @@ def _merge(base: dict, over: dict) -> dict:
     return out
 
 
+class Invalid(RuntimeError):
+    """settings.json is not a JSON object: saving a setting would overwrite what was written in it."""
+
+
+# why settings.json could not be read, in words for the UI ("" when it was): the backend then runs on the defaults
+# instead of failing to start, which left the window waiting for it with no reason given
+problem = ""
+
+
+def _read(f: Path) -> dict:
+    try:
+        data = json.loads(f.read_text(encoding="utf-8-sig"))   # Notepad and PowerShell 5 may write a BOM
+        if isinstance(data, dict):
+            return data
+        where = "最外层需要是 { }"
+    except json.JSONDecodeError as e:
+        where = f"第 {e.lineno} 行第 {e.colno} 列附近"
+    except UnicodeDecodeError:
+        where = "需要保存为 UTF-8 编码"
+    raise Invalid(f"settings.json 格式有误（{where}）：{f}")
+
+
 @lru_cache(maxsize=1)
 def get() -> dict:
-    s = DEFAULTS
+    global problem
+    s, problem = copy.deepcopy(DEFAULTS), ""
     f = settings_file()
     if f.exists():
         try:
-            s = _merge(DEFAULTS, json.loads(f.read_text(encoding="utf-8")))
-        except ValueError as e:
-            raise RuntimeError(f"{f} is not valid JSON: {e}") from e
+            s = _merge(DEFAULTS, _read(f))
+        except Invalid as e:
+            problem = (f"{e}。现在用的是默认设置；常见原因是少了逗号或引号，或者 Windows 路径中的 \\ 没有写成 \\\\ 或 /。"
+                       "改正后重启后端才会生效（安装版：在任务管理器中结束 LiveDubBackend.exe，再重新打开声影同传）")
     home = s["linux"]["home"].rstrip("/")
     for sec in ("asr", "dub"):
         for k, v in s[sec].items():
@@ -125,7 +149,7 @@ def reload() -> dict:
 def save(update: dict) -> None:
     """Merge `update` into settings.json (creating it) and reload."""
     f = settings_file()
-    cur = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    cur = _read(f) if f.exists() else {}   # Invalid: left as it is, for its owner to correct
     f.parent.mkdir(parents=True, exist_ok=True)
     tmp = f.with_suffix(".tmp")
     tmp.write_text(json.dumps(_merge(cur, update), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

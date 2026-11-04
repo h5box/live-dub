@@ -187,6 +187,8 @@ def main():
     s = summary(items)
     print("\n" + ("必需项已就绪。" if s["ok"] else "缺少必需项：" + "、".join(s["missing_required"])))
     print(f"设置文件：{s['settings_file']}" + ("" if s["settings_exists"] else "（文件不存在，正在使用默认值）"))
+    if settings.problem:
+        print(settings.problem)
     sys.exit(0 if s["ok"] else 1)
 
 
