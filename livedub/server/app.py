@@ -77,7 +77,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["http://tauri.localhost", "htt
 @app.exception_handler(settings.Invalid)
 async def _settings_invalid(request: Request, e: settings.Invalid):
     """A setting changed while settings.json cannot be read: refused, so what its owner wrote there is kept."""
-    return JSONResponse({"detail": f"{e}。改正并重启后端后才能保存设置"}, status_code=409)
+    return JSONResponse({"detail": f"{e}改正并重启后端后才能保存设置"}, status_code=409)
 
 
 def snapshot() -> dict:
