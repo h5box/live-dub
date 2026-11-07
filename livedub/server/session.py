@@ -190,7 +190,9 @@ def run_detail(name: str) -> dict | None:
         return None
     info.pop("pids", None)
     info["media"] = f"/api/sessions/{name}/media/index.m3u8" if any((d / "buf").glob("seg_*.ts")) else None
-    info["storage_bytes"] = sum(p.stat().st_size for p in d.rglob("*") if p.is_file())
+    sizes = [(p.relative_to(d).parts[0], p.stat().st_size) for p in d.rglob("*") if p.is_file()]
+    info["storage_bytes"] = sum(n for _, n in sizes)
+    info["cache_bytes"] = sum(n for top, n in sizes if top in MEDIA)   # what 清理缓存 would free
 
     def jsonl(f: str) -> list[dict]:
         rows = []

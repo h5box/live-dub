@@ -27,9 +27,12 @@ def test_export_uses_source_time_and_ignores_partial_event(run):
 
 
 def test_cache_cleanup_keeps_transcript(run):
+    before = session.run_detail(run.name)
+    assert before and before["info"]["cache_bytes"] == 8   # the chunk and the clip
     session.remove_run(run.name, cache_only=True)
     detail = session.run_detail(run.name)
-    assert detail["info"]["media"] is None
+    assert detail and detail["info"]["media"] is None
+    assert detail["info"]["cache_bytes"] == 0 < detail["info"]["storage_bytes"]   # the history page drops 清理缓存
     assert len(detail["events"]) == 1
     assert not (run / "clips").exists()
 

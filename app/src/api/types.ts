@@ -17,6 +17,7 @@ export interface Session {
   src?: string; kind?: SourceKind; mt_model?: string; is_live?: boolean;
   obs?: boolean; obs_url?: string | null;   // the optional OBS output (MediaMTX)
   storage_bytes?: number;
+  cache_bytes?: number;                     // video chunks and dub clips (older backends leave it out)
   media?: string | null;                    // retained video only
   created: number; started?: number; ended?: number; log: [number, string][];
 }

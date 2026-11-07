@@ -143,7 +143,7 @@ const STATE: Record<string, string> = { starting: "准备中", running: "翻译�
           <a class="btn" :href="`${BASE}/api/sessions/${encodeURIComponent(info.name)}/subtitles.srt?language=${exportLanguage}`" download="subtitles.srt">导出字幕</a>
           <span class="muted">占用 {{ ((info.storage_bytes ?? 0) / 1024 ** 2).toFixed(0) }} MB</span>
           <template v-if="!['starting', 'running', 'stopping'].includes(info.state)">
-            <button class="btn" :disabled="removing" @click="confirm = 'cache'">清理缓存</button>
+            <button v-if="info.cache_bytes !== 0" class="btn" :disabled="removing" @click="confirm = 'cache'">清理缓存</button>
             <button class="btn danger" :disabled="removing" @click="confirm = 'delete'">删除本场</button>
           </template>
         </div>
