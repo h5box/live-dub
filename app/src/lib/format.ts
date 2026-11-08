@@ -61,7 +61,10 @@ export function median(xs: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-/** a size in bytes: 5.4 GB, 110 MB */
+/** a size in bytes: 5.4 GB, 110 MB, 300 KB; 0 MB for nothing (not "1 MB", which an emptied cache or a slow download
+ *  used to read as) */
 export function size(b: number): string {
-  return b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`;
+  if (b >= 999.5e6) return `${(b / 1e9).toFixed(1)} GB`;
+  if (b >= 999.5e3 || b <= 0) return `${Math.round(Math.max(0, b) / 1e6)} MB`;
+  return `${Math.max(1, Math.round(b / 1e3))} KB`;
 }
