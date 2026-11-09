@@ -43,7 +43,7 @@ function parts(text: string): { t: string; m: boolean }[] {
 
 <template>
   <div class="line" :class="[phase, { open, low, seekable, ['edge-' + edge]: !!edge }]" role="button" tabindex="0"
-       :aria-expanded="open" :title="seekable ? '从这句开始播放' : undefined" @click="activate" @keydown.enter.prevent="activate"
+       :aria-expanded="seekable ? undefined : open" :title="seekable ? '从这句开始播放' : undefined" @click="activate" @keydown.enter.prevent="activate"
        @keydown.space.prevent="activate">
     <span v-if="edge" class="edge-label">{{ edgeLabel }}</span>
     <div class="t">
@@ -66,7 +66,8 @@ function parts(text: string): { t: string; m: boolean }[] {
       </template>
       <span v-if="low" class="chip warning" title="字幕完成时距播出不到 5 秒">
         <Icon name="alert" :size="12" />余量 {{ sec1(row.slack) }} 秒</span>
-      <button v-if="seekable" class="info btn ghost sm icon" :class="{ on: open }" title="耗时明细" @click.stop="emit('toggle')">
+      <button v-if="seekable" class="info btn ghost sm icon" :class="{ on: open }" title="耗时明细" :aria-expanded="open"
+              @click.stop="emit('toggle')">
         <Icon name="info" :size="13" /></button>
     </div>
     <div v-if="phase === 'onair'" class="prog"><i :style="{ transform: `scaleX(${progress ?? 0})` }" /></div>

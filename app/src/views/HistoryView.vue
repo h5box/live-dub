@@ -100,7 +100,7 @@ const STATE: Record<string, string> = { starting: "准备中", running: "翻译�
         <template v-for="g in groups" :key="g.day">
           <div class="day">{{ g.day }}</div>
           <button v-for="s in g.items" :key="s.name" class="item" :class="{ on: history.selected === s.name }"
-                  @click="select(s.name)">
+                  :aria-current="history.selected === s.name ? 'true' : undefined" @click="select(s.name)">
             <span class="time num">{{ hm(s.created) }}</span>
             <span class="name" :title="s.title">{{ s.title }}</span>
             <span class="meta">
