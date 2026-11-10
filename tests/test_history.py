@@ -207,3 +207,26 @@ def test_session_fails_when_ingest_gives_up_before_any_picture(run, monkeypatch,
     else:        # nothing came in: the processor would wait forever; the UI offers to retry
         assert current.info["state"] == "failed" and killed
         assert json.loads((run / "run.json").read_text(encoding="utf-8"))["state"] == "failed"
+
+
+@pytest.mark.parametrize("typed, src", [
+    ("www.youtube.com/watch?v=abc", "https://www.youtube.com/watch?v=abc"),
+    ("  youtu.be/abc ", "https://youtu.be/abc"),
+    ('"twitch.tv/somebody"', "https://twitch.tv/somebody"),
+    ("HTTPS://www.youtube.com/watch?v=Abc", "https://www.youtube.com/watch?v=Abc"),
+    ("https://example.com/Live.m3u8", "https://example.com/Live.m3u8"),
+    ('"D:\\Videos\\talk.mp4"', "D:\\Videos\\talk.mp4"),
+    ("D:/Videos/talk.mp4", "D:/Videos/talk.mp4"),
+    ("talk.mkv", "talk.mkv"),
+    ("/home/me/talk.mp4", "/home/me/talk.mp4"),
+])
+def test_a_link_copied_without_its_scheme_still_opens(typed, src):
+    assert session.normalize_source(typed) == src
+
+
+def test_a_folder_that_looks_like_a_host_stays_a_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(session, "ROOT", tmp_path)
+    (tmp_path / "talks.video").mkdir()
+    (tmp_path / "talks.video" / "a.mp4").write_bytes(b"x")
+    assert session.normalize_source("talks.video/a.mp4") == "talks.video/a.mp4"
+    assert session.source_problem(session.normalize_source("talks.video/a.mp4")) is None

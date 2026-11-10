@@ -31,7 +31,9 @@ async function chooseFile() {
 const step = (d: number) => { form.delay = Math.min(120, Math.max(10, Math.round(form.delay + d))); };
 
 const src = computed(() => form.src.trim());
-const kind = computed(() => (!src.value ? null : /^https?:\/\//i.test(src.value) ? "link" : "file"));
+// the backend puts https:// in front of a link copied without it (www.youtube.com/watch?v=…, youtu.be/…)
+const kind = computed(() => (!src.value ? null
+  : /^https?:\/\//i.test(src.value) || /^(?:[a-z0-9-]+\.)+[a-z]{2,}\/[^\s\\]*$/i.test(src.value) ? "link" : "file"));
 const defaultModel = computed(() => preset.value?.mt_model || live.models.find((m) => m.default)?.key || "");
 const modelInfo = computed(() => live.models.find((m) => m.key === model.value));
 const modelLabel = (key: string) => live.models.find((m) => m.key === key)?.label ?? key;

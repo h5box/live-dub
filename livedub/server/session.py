@@ -93,6 +93,22 @@ def list_models() -> list[dict]:
     return out
 
 
+# a link copied without its scheme: www.youtube.com/watch?v=…, youtu.be/…, twitch.tv/… (a host, then a path)
+BARE_LINK = re.compile(r"(?i)(?:[a-z0-9-]+\.)+[a-z]{2,}/[^\s\\]*")
+
+
+def normalize_source(src: str) -> str:
+    """The source as typed or pasted: without the quotes Explorer's 复制为路径 puts around a path, with https:// in
+    front of a link copied without it, and with the scheme in lower case (HTTPS://… was taken for a file)."""
+    src = src.strip().strip('"').strip()
+    m = re.match(r"(?i)https?://", src)
+    if m:
+        return m[0].lower() + src[m.end():]
+    if BARE_LINK.fullmatch(src) and not (ROOT / src).exists():
+        return "https://" + src
+    return src
+
+
 def source_kind(src: str) -> str:
     """link (a live or recorded stream behind a URL; ingest tells which) or file (a local video)."""
     return "link" if src.startswith(("http://", "https://")) else "file"
@@ -436,7 +452,7 @@ class Session:
         if not pf:
             raise RuntimeError(f"找不到场景预设：{preset}")
         base = json.loads(pf.read_text(encoding="utf-8"))
-        src = (src or base.get("src") or "").strip().strip('"')
+        src = normalize_source(src or base.get("src") or "")
         problem = source_problem(src)
         if problem:
             raise RuntimeError(problem)
