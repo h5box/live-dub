@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.parse
 from pathlib import Path
 
 import psutil
@@ -364,6 +365,27 @@ def remove_run(name: str, cache_only=False):
     for target in ([d / "buf", d / "clips"] if cache_only else [d]):
         if target.exists():
             shutil.rmtree(target)
+
+
+EXPORT_LABEL = {"zh": "中文字幕", "en": "原文字幕", "both": "双语字幕"}
+
+
+def export_filename(name: str, language: str) -> str:
+    """What an exported .srt is saved as, e.g. "keynote - 中文字幕.srt": the video's name for a local file, the site
+    and start time for a link, else the session's title; every export used to come down as subtitles.srt."""
+    try:
+        info = json.loads((RUNS / name / "run.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        info = {}
+    title, src = str(info.get("title") or ""), str(info.get("src") or "")
+    if title and title == src and source_kind(src) == "link":
+        host = urllib.parse.urlsplit(src).hostname or ""
+        when = time.strftime("%Y-%m-%d %H-%M", time.localtime(info["created"])) if info.get("created") else ""
+        title = " ".join(filter(None, (host.removeprefix("www."), when)))
+    elif title and src and title == Path(src.replace("\\", "/")).name:
+        title = Path(title).stem
+    title = re.sub(r'[\s\x00-\x1f<>:"/\\|?*]+', " ", title).strip(" .")[:80].strip(" .") or name   # Windows cannot save these
+    return f"{title} - {EXPORT_LABEL[language]}.srt"
 
 
 def subtitles(name: str, language: str = "zh") -> str:

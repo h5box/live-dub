@@ -140,7 +140,7 @@ const STATE: Record<string, string> = { starting: "准备中", running: "翻译�
           <button v-if="retained" class="btn primary" @click="replay = !replay">{{ replay ? '收起播放器' : resumable ? '继续观看' : '回放视频' }}</button>
           <span v-else class="muted">{{ info.state === 'running' ? '本场仍在进行，请在「观看」页播放' : '视频缓存已清理，字幕仍可阅读和导出' }}</span>
           <select v-model="exportLanguage" class="select" aria-label="导出字幕语言"><option value="both">双语</option><option value="zh">中文</option><option value="en">原文</option></select>
-          <a class="btn" :href="`${BASE}/api/sessions/${encodeURIComponent(info.name)}/subtitles.srt?language=${exportLanguage}`" download="subtitles.srt">导出字幕</a>
+          <a class="btn" :href="`${BASE}/api/sessions/${encodeURIComponent(info.name)}/subtitles.srt?language=${exportLanguage}`" download>导出字幕</a>
           <span class="muted">占用 {{ size(info.storage_bytes ?? 0) }}</span>
           <template v-if="!['starting', 'running', 'stopping'].includes(info.state)">
             <button v-if="info.cache_bytes !== 0" class="btn" :disabled="removing" @click="confirm = 'cache'">清理缓存</button>

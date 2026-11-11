@@ -7,10 +7,12 @@ open it too."""
 import asyncio
 import json
 import os
+import re
 import shutil
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -490,8 +492,10 @@ async def export_subtitles(name: str, language: str = "zh"):
         text = await asyncio.to_thread(sess.subtitles, name, language)
     except ValueError as e:
         raise HTTPException(404, str(e))
+    fallback = re.sub(r"[^\w.-]", "_", f"{name}-{language}.srt", flags=re.ASCII)   # without filename* (RFC 6266)
+    disposition = f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{quote(sess.export_filename(name, language))}'
     return Response(text.encode("utf-8-sig"), media_type="application/x-subrip",
-                    headers={"Content-Disposition": 'attachment; filename="subtitles.srt"'})
+                    headers={"Content-Disposition": disposition})
 
 
 @app.delete("/api/sessions/{name}")

@@ -230,3 +230,28 @@ def test_a_folder_that_looks_like_a_host_stays_a_path(tmp_path, monkeypatch):
     (tmp_path / "talks.video" / "a.mp4").write_bytes(b"x")
     assert session.normalize_source("talks.video/a.mp4") == "talks.video/a.mp4"
     assert session.source_problem(session.normalize_source("talks.video/a.mp4")) is None
+
+
+@pytest.mark.parametrize("info, language, saved_as", [
+    ({"title": "talk.mp4", "src": "D:\\Videos\\talk.mp4"}, "zh", "talk - 中文字幕.srt"),
+    ({"title": "Keynote: AI/ML?", "src": "https://example.com/a.m3u8"}, "both", "Keynote AI ML - 双语字幕.srt"),
+    ({"title": "https://www.youtube.com/watch?v=abc", "src": "https://www.youtube.com/watch?v=abc",
+      "created": time.mktime((2026, 11, 3, 17, 58, 0, 0, 0, -1))}, "en", "youtube.com 2026-11-03 17-58 - 原文字幕.srt"),
+    ({}, "zh", "20261010-test - 中文字幕.srt"),
+])
+def test_an_export_is_named_after_the_session_and_language(run, info, language, saved_as):
+    (run / "run.json").write_text(json.dumps({"name": run.name, "state": "ended", **info}), encoding="utf-8")
+    assert session.export_filename(run.name, language) == saved_as
+
+
+def test_the_export_header_carries_the_name(run, monkeypatch):
+    import asyncio
+    from urllib.parse import unquote
+
+    from livedub.server import app
+    (run / "run.json").write_text(json.dumps({"name": run.name, "state": "ended", "title": "演讲.mkv",
+                                              "src": "演讲.mkv"}), encoding="utf-8")
+    r = asyncio.run(app.export_subtitles(run.name, "zh"))
+    cd = r.headers["content-disposition"]
+    assert 'filename="20261010-test-zh.srt"' in cd and unquote(cd.split("UTF-8''")[1]) == "演讲 - 中文字幕.srt"
+    assert bytes(r.body).decode("utf-8-sig").startswith("1\n")
