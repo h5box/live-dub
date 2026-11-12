@@ -9,8 +9,7 @@ come from GitHub, or from the mirror in settings github_mirror. Models go to the
 models_dir), tools to tools/.
 
 usage: uv run python -m livedub.install KEY [--source ID]
-       KEY: asr, llama, model:index-9b, ffmpeg, deno, mediamtx
-       ID:  huggingface, modelscope, hf-mirror, github, github-mirror
+       KEY and ID: listed by --help
 """
 import argparse
 import hashlib
@@ -538,11 +537,13 @@ def _move(j: Job):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("key", help="asr, llama, model:<key>, ffmpeg, deno, mediamtx")
-    ap.add_argument("--source", default="", choices=["", *SOURCES], help="where from (default: the first that answers)")
+    keys = [k for k in catalog() if k not in SCRIPTS]
+    ap.add_argument("key", metavar="KEY", help="要下载的项：" + ", ".join(keys))
+    ap.add_argument("--source", default="", metavar="ID", choices=list(SOURCES),
+                    help="下载来源（默认用第一个能连上的）：" + ", ".join(SOURCES))
     a = ap.parse_args()
-    if a.key not in catalog() or a.key in SCRIPTS:
-        raise SystemExit(f"无法下载 {a.key}；可下载：{', '.join(k for k in catalog() if k not in SCRIPTS)}")
+    if a.key not in keys:
+        raise SystemExit(f"无法下载 {a.key}；可下载：{', '.join(keys)}")
     start(a.key, a.source)
     last = ""
     while (j := JOBS[a.key]).state in ("queued", "running"):
