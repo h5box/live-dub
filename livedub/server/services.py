@@ -202,11 +202,12 @@ class Services:
 
     # ---- start / stop -------------------------------------------------------------------------------------
     @staticmethod
-    def _linux_check(paths: dict[str, str], what: str):
-        """Fail early, in words, when the Linux side or a file the service needs is missing."""
+    def _linux_check(paths: dict[str, str], what: str, card: str):
+        """Fail early, in words, when the Linux side or a file the service needs is missing; the fix is on the card
+        of the environment page (the installer ships no docs/)."""
         missing = linux_missing(paths)
         if missing:
-            raise RuntimeError(f"{what}尚未安装完整，缺少：{'、'.join(missing)}（见 docs/安装.md）")
+            raise RuntimeError(f"{what}尚未安装完整，缺少：{'、'.join(missing)}。请按「环境」页「{card}」中的提示安装")
 
     def start_asr(self, config: Path):
         a = settings.get()["asr"]
@@ -217,7 +218,7 @@ class Services:
             procs.spawn(settings.python_argv("livedub.asr") + ["--port", str(settings.port("asr"))], log_path("asr"), cwd=ROOT)
             return
         self._linux_check({"识别的 Python 环境": a["python"], "Parakeet 模型": a["model"],
-                           "TitaNet 模型": a["speaker_model"]}, "识别服务")
+                           "TitaNet 模型": a["speaker_model"]}, "识别服务", "识别")
         cmd = (f"exec env CUDA_VISIBLE_DEVICES= PYTHONUNBUFFERED=1 {sh(a['python'])} "
                f"{sh(to_linux(settings.RESOURCES / 'svc' / 'asr_service.py'))} --config {sh(to_linux(config))} "
                f"--port {settings.port('asr')} --device {sh(a['device'])} --threads {int(a['threads'])} "
@@ -261,7 +262,7 @@ class Services:
             need.update({"index-tts 代码": d["indextts_repo"], "IndexTTS-2.5 模型": d["model"]})
         elif d["backend"] == "voxcpm":
             need.update({"VoxCPM2 模型": d["voxcpm_model"]})
-        self._linux_check(need, "配音服务")
+        self._linux_check(need, "配音服务", "配音")
         env = {**({"PYTHONUNBUFFERED": "1"}), **d.get("env", {})}
         if d["backend"] == "omni" and not _port_open(settings.port("omni")):
             oenv = {**OMNI_ENV, **d.get("env", {})}

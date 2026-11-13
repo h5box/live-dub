@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import pytest
 
-from livedub import doctor
+from livedub import doctor, settings
 from livedub.server import services
 
 
@@ -38,3 +40,14 @@ def test_the_linux_side_lists_what_it_lacks(monkeypatch):
     side, on_side = checks(monkeypatch, lambda paths: ["dub_py"])
     dub = next(i for i in on_side if i["label"].startswith("配音环境"))
     assert side["ok"] and dub["detail"] == "缺少：Python 环境"
+
+
+def test_a_service_missing_on_the_linux_side_points_at_its_card(monkeypatch):
+    # the installer ships no docs/: the error names the card of the environment page that installs it
+    monkeypatch.setattr(services, "linux_missing", lambda paths: list(paths)[:1])
+    monkeypatch.setitem(settings.get()["asr"], "backend", "nemo")
+    svc = services.Services
+    for start, card in ((lambda: svc.start_asr(svc, Path("asr.json")), "识别"), (lambda: svc.start_dub(svc), "配音")):
+        with pytest.raises(RuntimeError) as e:
+            start()
+        assert f"「环境」页「{card}」" in str(e.value) and "docs/" not in str(e.value)
