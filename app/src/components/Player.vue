@@ -30,6 +30,8 @@ const props = withDefaults(defineProps<{
 
 const box = ref<HTMLElement | null>(null);
 const video = ref<HTMLVideoElement | null>(null);
+const screenEl = ref<HTMLElement | null>(null);
+const volwrap = ref<HTMLElement | null>(null);
 const mixer = getMixer();
 let hls: Hls | null = null;
 let frags: Fragment[] = [];
@@ -185,9 +187,20 @@ function fullscreen() {
   else box.value?.requestFullscreen().catch(() => {});
 }
 const onFs = () => (st.fs = !!document.fullscreenElement);
+// a click outside the volume panel closes it; one on the picture only closes it, without play / pause
+function onDocClick(e: MouseEvent) {
+  if (!st.vol || volwrap.value?.contains(e.target as Node)) return;
+  st.vol = false;
+  if (screenEl.value?.contains(e.target as Node)) e.stopPropagation();
+}
 
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement;
+  if (e.key === "Escape" && st.vol) {
+    st.vol = false;
+    if (volwrap.value?.contains(t)) volwrap.value.querySelector("button")?.focus();
+    return;
+  }
   if (!visible || !props.media || ["INPUT", "SELECT", "TEXTAREA"].includes(t?.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
   // Space activates a focused button, link or tab (stop, the side tabs, the player's own controls) instead of toggling
   if (e.key === " " && t?.closest?.("button, a[href], summary, [role=button], [role=tab]")) return;
@@ -237,6 +250,7 @@ onMounted(() => {
   raf = requestAnimationFrame(loop);
   window.addEventListener("keydown", onKey);
   document.addEventListener("fullscreenchange", onFs);
+  document.addEventListener("click", onDocClick, true);
   player.seek = handleSeek;
 });
 onActivated(() => { visible = true; mixer.use(props.session ?? ""); if (video.value) mixer.attach(video.value); player.seek = handleSeek; });
@@ -246,6 +260,7 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(raf);
   window.removeEventListener("keydown", onKey);
   document.removeEventListener("fullscreenchange", onFs);
+  document.removeEventListener("click", onDocClick, true);
   if (player.seek === handleSeek) player.seek = null;
   teardown();
 });
@@ -329,7 +344,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
 
 <template>
   <div ref="box" class="player" :class="{ fs: st.fs }">
-    <div class="screen" @click="props.media && toggle()" @dblclick.prevent="fullscreen">
+    <div ref="screenEl" class="screen" @click="props.media && toggle()" @dblclick.prevent="fullscreen">
       <video ref="video" playsinline @pause="onPause" @play="mixer.resume()" @playing="onPlaying"
              @waiting="st.waiting = true" @seeking="onSeeking" @ended="onEnded" />
       <div v-if="line && prefs.subs !== 'off'" class="subs" :class="{ box: prefs.box }">
@@ -374,7 +389,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
       <select v-model="prefs.subs" class="select subsel" title="字幕（C 切换；A / D 上一句 / 下一句）">
         <option v-for="(label, k) in SUBS" :key="k" :value="k">{{ label }}</option>
       </select>
-      <div class="volwrap">
+      <div ref="volwrap" class="volwrap">
         <button class="btn ghost icon" title="音量" :aria-expanded="st.vol" @click="st.vol = !st.vol"><Icon name="voice" :size="17" /></button>
         <div v-if="st.vol" class="vol card" @click.stop>
           <label><span>原声</span><input v-model.number="prefs.orig" type="range" min="0" max="1" step="0.05" /></label>
@@ -382,7 +397,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
           <label class="chk"><input v-model="prefs.box" type="checkbox" />字幕背景</label>
         </div>
       </div>
-      <button class="btn ghost icon" title="全屏（F）" @click="fullscreen"><Icon :name="st.fs ? 'shrink' : 'expand'" :size="16" /></button>
+      <button class="btn ghost icon" :title="st.fs ? '退出全屏（F）' : '全屏（F）'" @click="fullscreen"><Icon :name="st.fs ? 'shrink' : 'expand'" :size="16" /></button>
     </div>
   </div>
 </template>
