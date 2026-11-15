@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One resident service on the environment page: where it runs, its port and logs, what the environment check found
 // for it, start / restart / stop, and the last log lines on demand.
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { api } from "../api/client";
 import type { DoctorItem, SvcName } from "../api/types";
 import { active, live, serviceAction, services } from "../stores/live";
@@ -17,9 +17,13 @@ const busy = computed(() => live.busy.startsWith(props.name + ":"));
 const label = (key?: string | null) => live.models.find((m) => m.key === key)?.label ?? key ?? "";
 
 const log = ref<Record<string, string> | null>(null);
+const logbox = ref<HTMLElement | null>(null);
 async function toggleLog() {
   if (log.value) { log.value = null; return; }
-  try { log.value = await api.serviceLog(props.name, 120); } catch (e) { live.error = (e as Error).message; }
+  try { log.value = await api.serviceLog(props.name, 120); } catch (e) { live.error = (e as Error).message; return; }
+  // the newest lines (where a failure shows) are at the end: open each log scrolled down to them
+  await nextTick();
+  logbox.value?.querySelectorAll("pre").forEach((pre) => (pre.scrollTop = pre.scrollHeight));
 }
 </script>
 
@@ -59,7 +63,7 @@ async function toggleLog() {
     <button class="btn ghost sm" :aria-expanded="!!log" @click="toggleLog">
       <Icon name="log" :size="13" />{{ log ? "收起日志" : "查看最近日志" }}</button>
   </div>
-  <div v-if="log" class="logbox">
+  <div v-if="log" ref="logbox" class="logbox">
     <template v-for="(text, f) in log" :key="f">
       <div class="lf">{{ f }}</div>
       <pre>{{ text || "（暂无内容）" }}</pre>

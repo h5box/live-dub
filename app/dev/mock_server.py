@@ -354,8 +354,8 @@ PROVIDERS = {"deepseek": {"name": "deepseek", "label": "DeepSeek", "base_url": "
 YOUTUBE = {"cookies": "", "cookies_from_browser": "", "cookies_found": False}   # kept here: settings.json stays as is
 
 
-def log_tail(name):
-    lines = [f"[{time.strftime('%H:%M:%S')}] (mock) {name} log line {i}" for i in range(8)]
+def log_tail(name, n=200):
+    lines = [f"[{time.strftime('%H:%M:%S')}] (mock) {name} log line {i}" for i in range(n)]
     return {f: "\n".join(lines) for f in real_svc.info()[name]["logs"]}
 
 
@@ -406,7 +406,8 @@ class H(BaseHTTPRequestHandler):
             return self._json(real_svc.info())
         m = re.fullmatch(r"/api/services/(\w+)/log", p)
         if m and m[1] in S["up"]:
-            return self._json(log_tail(m[1]))
+            q = urllib.parse.parse_qs(self.path.partition("?")[2])
+            return self._json(log_tail(m[1], min(int((q.get("lines") or ["200"])[0]), 2000)))
         if p == "/api/doctor":
             return self._json(doctor())
         if p == "/api/settings/online":
