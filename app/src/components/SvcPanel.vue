@@ -18,13 +18,16 @@ const label = (key?: string | null) => live.models.find((m) => m.key === key)?.l
 
 const log = ref<Record<string, string> | null>(null);
 const logbox = ref<HTMLElement | null>(null);
-async function toggleLog() {
-  if (log.value) { log.value = null; return; }
+const loadingLog = ref(false);
+async function loadLog() {
+  loadingLog.value = true;
   try { log.value = await api.serviceLog(props.name, 120); } catch (e) { live.error = (e as Error).message; return; }
-  // the newest lines (where a failure shows) are at the end: open each log scrolled down to them
+  finally { loadingLog.value = false; }
+  // the newest lines (where a failure shows) are at the end: show each log scrolled down to them
   await nextTick();
   logbox.value?.querySelectorAll("pre").forEach((pre) => (pre.scrollTop = pre.scrollHeight));
 }
+const toggleLog = () => (log.value ? (log.value = null) : loadLog());
 </script>
 
 <template>
@@ -60,8 +63,10 @@ async function toggleLog() {
     <button v-else-if="startable" class="btn sm" :disabled="!!live.busy || settling || !live.link"
             @click="serviceAction(name, 'start')">
       <Icon :name="busy ? 'spinner' : 'play'" :size="12" :class="{ spin: busy }" />启动</button>
-    <button class="btn ghost sm" :aria-expanded="!!log" @click="toggleLog">
+    <button class="btn ghost sm logbtn" :aria-expanded="!!log" @click="toggleLog">
       <Icon name="log" :size="13" />{{ log ? "收起日志" : "查看最近日志" }}</button>
+    <button v-if="log" class="btn ghost sm" :disabled="loadingLog" title="重新读取最近的日志" @click="loadLog">
+      <Icon :name="loadingLog ? 'spinner' : 'restart'" :size="13" :class="{ spin: loadingLog }" />刷新</button>
   </div>
   <div v-if="log" ref="logbox" class="logbox">
     <template v-for="(text, f) in log" :key="f">
@@ -85,7 +90,7 @@ dd { margin: 0; color: var(--ink-1); min-width: 0; overflow-wrap: anywhere; }
 .tag { padding: 1px 8px; border-radius: 4px; background: var(--surface-2); font-size: 12px; color: var(--ink-2); }
 .err { margin-top: 12px; }
 .acts { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-.acts .ghost { margin-left: auto; }
+.acts .logbtn { margin-left: auto; }
 .logbox { margin-top: 8px; }
 .lf { font-size: 11.5px; color: var(--ink-3); margin: 6px 0 2px; }
 .logbox pre { max-height: 260px; overflow: auto; margin: 0; padding: 8px 10px; border-radius: var(--radius-sm);
