@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from livedub.server import session
+from livedub.server.services import Services
 
 
 @pytest.fixture
@@ -98,7 +99,7 @@ def test_url_recording_can_prioritize_before_ingest_finishes(run):
     (run / "source.json").write_text('{"is_live": false}', encoding="utf-8")
     (run / "config.json").write_text('{"ahead": true}', encoding="utf-8")
     (run / "buf" / "list_run1.csv").write_text("seg_000000.ts,0,10\n", encoding="utf-8")
-    current = session.Session(None)
+    current = session.Session(Services())
     current.dir, current.info = run, {"state": "running"}
 
     current.prioritize(8)
@@ -113,7 +114,7 @@ def test_prioritize_ignores_processed_position(run):
     (run / "config.json").write_text('{"ahead": true}', encoding="utf-8")
     (run / "buf" / "list_run1.csv").write_text("seg_000000.ts,0,10\n", encoding="utf-8")
     (run / "progress.json").write_text('{"ranges": [[0.060125, 9.5]], "done": false}', encoding="utf-8")
-    current = session.Session(None)
+    current = session.Session(Services())
     current.dir, current.info = run, {"state": "running"}
 
     current.prioritize(0.060111)   # the first frame's time, a few microseconds before the range's start

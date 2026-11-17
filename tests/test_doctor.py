@@ -46,8 +46,8 @@ def test_a_service_missing_on_the_linux_side_points_at_its_card(monkeypatch):
     # the installer ships no docs/: the error names the card of the environment page that installs it
     monkeypatch.setattr(services, "linux_missing", lambda paths: list(paths)[:1])
     monkeypatch.setitem(settings.get()["asr"], "backend", "nemo")
-    svc = services.Services
-    for start, card in ((lambda: svc.start_asr(svc, Path("asr.json")), "识别"), (lambda: svc.start_dub(svc), "配音")):
+    svc = services.Services()
+    for start, card in ((lambda: svc.start_asr(Path("asr.json")), "识别"), (svc.start_dub, "配音")):
         with pytest.raises(RuntimeError) as e:
             start()
         assert f"「环境」页「{card}」" in str(e.value) and "docs/" not in str(e.value)
