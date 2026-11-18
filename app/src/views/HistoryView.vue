@@ -159,10 +159,10 @@ const STATE: Record<string, string> = { starting: "准备中", running: "翻译�
                :tone="st.dub.failed ? 'critical' : st.dub.late + st.dub.skipped ? 'warning' : undefined"
                :tone-label="st.dub.failed ? '有失败' : '有遗漏'" />
           <Kpi label="字幕余量（中位数）" :value="sec1(st.slackMed)" :unit="st.slackMed !== null ? '秒' : ''"
-               :sub="st.slackMin !== null ? `最低 ${sec1(st.slackMin)} 秒` : ''"
+               :sub="st.slackMin !== null ? `最低 ${sec1(st.slackMin)} 秒` : '本场没有耗时记录'"
                :tone="st.slackMin !== null && st.slackMin < LOW_MARGIN_S ? 'warning' : undefined" tone-label="偏低" />
           <Kpi label="配音余量（中位数）" :value="sec1(st.leftMed)" :unit="st.leftMed !== null ? '秒' : ''"
-               :sub="st.leftMin !== null ? `最低 ${sec1(st.leftMin)} 秒` : ''" />
+               :sub="!info.dub ? '本场仅字幕' : st.leftMin !== null ? `最低 ${sec1(st.leftMin)} 秒` : '暂无数据'" />
         </div>
         <div v-if="rows.length" class="chartbox">
           <SlackChart :rows="rows" :p0="p0" :height="150" :delay="info.delay_s" :dub-on="info.dub" @pick="pick" />
