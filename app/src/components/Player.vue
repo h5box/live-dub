@@ -368,11 +368,11 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
       </div>
     </div>
 
-    <div class="bar" :class="{ off: !props.media || st.first === null }">
+    <div class="bar" :class="{ off: !props.media || st.first === null, lv: props.running && props.isLive }">
       <button class="btn ghost icon" :title="st.playing ? '暂停（空格）' : '播放（空格）'" @click="toggle">
         <Icon :name="st.playing ? 'pause' : 'play'" :size="16" /></button>
-      <button class="btn ghost icon" title="后退 10 秒" @click="skip(-10)"><Icon name="back10" :size="17" /></button>
-      <button class="btn ghost icon" title="前进 10 秒" @click="skip(10)"><Icon name="fwd10" :size="17" /></button>
+      <button class="btn ghost icon skip" title="后退 10 秒" @click="skip(-10)"><Icon name="back10" :size="17" /></button>
+      <button class="btn ghost icon skip" title="前进 10 秒" @click="skip(10)"><Icon name="fwd10" :size="17" /></button>
       <span class="time num">{{ st.pt !== null ? clock(st.pt - p0) : "—" }}</span>
       <div class="scrub" role="slider" tabindex="0" aria-label="播放进度（← / → 跳 5 秒）" aria-valuemin="0" :aria-valuemax="Math.round(span)"
            :aria-valuenow="Math.round((pos(st.pt) * span) / 100)"
@@ -384,7 +384,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
       </div>
       <button v-if="props.running && props.isLive" class="btn sm live" :class="{ on: player.follow && (behind ?? 0) < 3 }"
               :title="player.follow ? '正按设定延时播放' : '回到按设定延时播放的位置'" @click="backToLive">
-        <i />{{ player.follow && (behind ?? 0) < 3 ? `直播 · 延时 ${props.anchor?.delay ?? 30} 秒` : "回到直播位置" }}
+        <i /><span class="long">{{ player.follow && (behind ?? 0) < 3 ? `直播 · 延时 ${props.anchor?.delay ?? 30} 秒` : "回到直播位置" }}</span><span class="short">直播</span>
       </button>
       <select v-model="prefs.subs" class="select subsel" title="字幕（C 切换；A / D 上一句 / 下一句）">
         <option v-for="(label, k) in SUBS" :key="k" :value="k">{{ label }}</option>
@@ -407,7 +407,7 @@ function scrub(e: PointerEvent) { seekPT(ptFromEvent(e)); if (video.value?.pause
   border-radius: 6px; color: #fff; font-size: 13px; pointer-events: none; }
 .preparing { position: absolute; top: 12px; left: 12px; padding: 6px 10px; background: #000a; border-radius: 6px; color: #fff; font-size: 12px; }
 .track .prepared { position: absolute; height: 100%; background: var(--accent); opacity: 0.35; }
-.player { display: flex; flex-direction: column; min-width: 0; background: #000; border-radius: var(--radius); overflow: hidden;
+.player { container: player / inline-size; display: flex; flex-direction: column; min-width: 0; background: #000; border-radius: var(--radius); overflow: hidden;
   border: 1px solid var(--border); }
 .player.fs { border-radius: 0; border: 0; }
 .screen { position: relative; aspect-ratio: 16 / 9; container-type: size; background: #000; cursor: pointer; }
@@ -436,6 +436,7 @@ video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: con
 .bar.off { opacity: .55; pointer-events: none; }
 .player.fs .bar { position: absolute; left: 0; right: 0; bottom: 0; opacity: 0; transition: opacity .2s; }
 .player.fs:hover .bar { opacity: 1; }
+.bar > * { flex-shrink: 0; }
 .time { min-width: 48px; text-align: center; font-size: 12px; color: var(--ink-2); }
 .scrub { position: relative; flex: 1; min-width: 60px; height: 24px; cursor: pointer; touch-action: none; }
 .track { position: absolute; left: 0; right: 0; top: 10px; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
@@ -448,7 +449,8 @@ video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: con
 .live { gap: 6px; height: 26px; font-size: 12px; }
 .live i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
 .live.on i { background: var(--onair); animation: pulse 1.6s ease-in-out infinite; }
-.subsel { width: auto; height: 26px; padding: 0 24px 0 8px; font-size: 12px; background-position: calc(100% - 13px) 11px, calc(100% - 8px) 11px; }
+.live .short { display: none; }
+.subsel { margin-left: auto; width: auto; height: 26px; padding: 0 24px 0 8px; font-size: 12px; background-position: calc(100% - 13px) 11px, calc(100% - 8px) 11px; }
 .volwrap { position: relative; }
 .vol { position: absolute; right: 0; bottom: 38px; z-index: 5; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
   width: 200px; box-shadow: var(--shadow); }
@@ -456,4 +458,10 @@ video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: con
 .vol label span { width: 30px; }
 .vol input[type=range] { flex: 1; accent-color: var(--accent); }
 .vol .chk { gap: 6px; }
+/* a narrow player (e.g. a half-screen browser window): the scrubber takes its own row above the buttons; narrower
+   still, the 10-second skips go (← / → still skip) and the live button keeps only its dot (the title says the rest) */
+@container player (max-width: 520px) { .bar.lv { flex-wrap: wrap; } .bar.lv .scrub { order: -1; flex-basis: 100%; } }
+@container player (max-width: 440px) { .bar.lv .skip { display: none; } }
+@container player (max-width: 400px) { .bar { flex-wrap: wrap; } .scrub { order: -1; flex-basis: 100%; } }
+@container player (max-width: 360px) { .skip { display: none; } .live .long { display: none; } .live .short { display: inline; } }
 </style>
